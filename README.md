@@ -38,4 +38,5 @@ Haidian forecast.
 
 - [Methodological foundation](docs/research/methodological-foundation.md)
 - [ADR 0001: engine/submission boundary](docs/adr/0001-engine-submission-boundary.md)
-- [Implemented ODD slice](docs/model/odd-redevelopment-slice.md)
+- [Implemented redevelopment ODD slice](docs/model/odd-redevelopment-slice.md)
+- [Implemented weighted cohort and market ODD slice](docs/model/odd-agent-market-slice.md)
