@@ -24,7 +24,18 @@ uv run ruff check src tests
 uv run ruff format --check src tests
 ```
 
+Run and fully replay-verify the current synthetic qualification campaign:
+
+```bash
+uv run urban-field smoke --output results/smoke-v1
+uv run urban-field verify results/smoke-v1
+```
+
+`smoke-v1` is a redevelopment-only synthetic mechanism check. It is not a calibrated
+Haidian forecast.
+
 ## Research and decisions
 
 - [Methodological foundation](docs/research/methodological-foundation.md)
 - [ADR 0001: engine/submission boundary](docs/adr/0001-engine-submission-boundary.md)
+- [Implemented ODD slice](docs/model/odd-redevelopment-slice.md)

@@ -19,6 +19,9 @@ dependencies = [
   "pyproj>=3.7,<4",
 ]
 
+[project.scripts]
+urban-field = "urban_field_dynamics.cli:main"
+
 [project.optional-dependencies]
 analysis = [
   "duckdb>=1.4,<2",
