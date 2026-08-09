@@ -14,13 +14,29 @@ from urban_field_dynamics.agents import (
     allocate_households,
 )
 from urban_field_dynamics.contracts import LandUse, SpatialUnitSpec
+from urban_field_dynamics.environment import (
+    EnvironmentalUnitSpec,
+    ExposureResult,
+    ExposureWeights,
+    SeasonalEnvironmentSpec,
+    evaluate_exposure,
+)
 from urban_field_dynamics.event_tape import EventTapeSpec, generate_event_tape
 from urban_field_dynamics.market import MarketClearingSpec, clear_market
 from urban_field_dynamics.redevelopment import evaluate_redevelopment
-from urban_field_dynamics.schedule import AnnualPhase, ScheduleConfig, iter_schedule
+from urban_field_dynamics.schedule import AnnualPhase, ScheduleConfig, Season, iter_schedule
+from urban_field_dynamics.transport import (
+    ODPair,
+    TransportAssignmentResult,
+    TransportAssignmentSpec,
+    TransportEdgeSpec,
+    assign_transport,
+    opportunity_accessibility,
+)
 
 NonNegativeInt = Annotated[int, Field(ge=0)]
 NonNegativeFloat = Annotated[float, Field(ge=0.0)]
+PositiveFloat = Annotated[float, Field(gt=0.0)]
 AccessibilityDelta = Annotated[float, Field(ge=-1.0, le=1.0)]
 
 
@@ -33,6 +49,8 @@ class PolicySpec(BaseModel):
     intervention_year: NonNegativeInt
     accessibility_delta: AccessibilityDelta = 0.0
     accessibility_delta_by_unit: dict[str, AccessibilityDelta] = Field(default_factory=dict)
+    transport_capacity_multiplier_by_edge: dict[str, PositiveFloat] = Field(default_factory=dict)
+    green_fraction_delta_by_unit: dict[str, AccessibilityDelta] = Field(default_factory=dict)
 
 
 class WorldRunConfig(BaseModel):
@@ -52,6 +70,13 @@ class WorldRunConfig(BaseModel):
     firms: tuple[FirmCohortSpec, ...] = ()
     market: MarketClearingSpec | None = None
     agent_taste_shock_scale: NonNegativeFloat = 0.0
+    transport_edges: tuple[TransportEdgeSpec, ...] = ()
+    transport_od: tuple[ODPair, ...] = ()
+    transport_assignment: TransportAssignmentSpec | None = None
+    accessibility_decay: NonNegativeFloat = 0.0
+    environmental_units: tuple[EnvironmentalUnitSpec, ...] = ()
+    seasonal_environment: tuple[SeasonalEnvironmentSpec, ...] = ()
+    exposure_weights: ExposureWeights | None = None
 
     @model_validator(mode="after")
     def validate_policy_and_units(self) -> WorldRunConfig:
@@ -62,6 +87,8 @@ class WorldRunConfig(BaseModel):
             raise ValueError("unit_id values must be unique")
         if not set(self.policy.accessibility_delta_by_unit).issubset(unit_ids):
             raise ValueError("policy accessibility unit IDs must exist in units")
+        if not set(self.policy.green_fraction_delta_by_unit).issubset(unit_ids):
+            raise ValueError("policy green-fraction unit IDs must exist in units")
 
         if self.locations or self.households or self.firms:
             location_ids = [location.unit_id for location in self.locations]
@@ -69,7 +96,7 @@ class WorldRunConfig(BaseModel):
                 raise ValueError("location unit_id values must be unique")
             if set(location_ids) != set(unit_ids):
                 raise ValueError("locations must match spatial unit IDs")
-            if self.market is None:
+            if (self.households or self.firms) and self.market is None:
                 raise ValueError("market is required when agent state is configured")
             known_locations = set(location_ids)
             cohort_ids = [cohort.cohort_id for cohort in (*self.households, *self.firms)]
@@ -80,6 +107,41 @@ class WorldRunConfig(BaseModel):
                 for cohort in (*self.households, *self.firms)
             ):
                 raise ValueError("cohort initial_unit_id must exist in locations")
+
+        transport_values = (
+            bool(self.transport_edges),
+            bool(self.transport_od),
+            self.transport_assignment is not None,
+        )
+        if any(transport_values) and not all(transport_values):
+            raise ValueError("transport edges, OD, and assignment must be configured together")
+        edge_ids = [edge.edge_id for edge in self.transport_edges]
+        if len(edge_ids) != len(set(edge_ids)):
+            raise ValueError("transport edge IDs must be unique")
+        if not set(self.policy.transport_capacity_multiplier_by_edge).issubset(edge_ids):
+            raise ValueError("policy transport edge IDs must exist in transport_edges")
+
+        environment_values = (
+            bool(self.environmental_units),
+            bool(self.seasonal_environment),
+            self.exposure_weights is not None,
+        )
+        if any(environment_values) and not all(environment_values):
+            raise ValueError("environment units, seasons, and weights must be configured together")
+        if self.environmental_units:
+            environmental_ids = [unit.unit_id for unit in self.environmental_units]
+            if set(environmental_ids) != set(unit_ids):
+                raise ValueError("environmental units must match spatial unit IDs")
+            if len(environmental_ids) != len(set(environmental_ids)):
+                raise ValueError("environmental unit IDs must be unique")
+            seasons = [profile.season for profile in self.seasonal_environment]
+            if len(seasons) != len(set(seasons)) or set(seasons) != set(Season):
+                raise ValueError("seasonal environment must define each season exactly once")
+            referenced_edges = {
+                edge_id for unit in self.environmental_units for edge_id in unit.transport_edge_ids
+            }
+            if not referenced_edges.issubset(edge_ids):
+                raise ValueError("environment transport edge IDs must exist in transport_edges")
         return self
 
 
@@ -103,6 +165,11 @@ class WorldResult(BaseModel):
     final_rents: dict[str, float] = Field(default_factory=dict)
     household_taste_shocks: dict[int, dict[str, dict[str, float]]] = Field(default_factory=dict)
     firm_taste_shocks: dict[int, dict[str, dict[str, float]]] = Field(default_factory=dict)
+    transport_traces: dict[int, dict[str, TransportAssignmentResult]] = Field(default_factory=dict)
+    environment_traces: dict[int, dict[str, dict[str, ExposureResult]]] = Field(
+        default_factory=dict
+    )
+    final_environment_quality: dict[str, float] = Field(default_factory=dict)
 
     @property
     def redevelopment_count(self) -> int:
@@ -124,6 +191,12 @@ def run_world(config: WorldRunConfig) -> WorldResult:
     firm_locations = {cohort.cohort_id: cohort.initial_unit_id for cohort in config.firms}
     household_taste_shocks: dict[int, dict[str, dict[str, float]]] = {}
     firm_taste_shocks: dict[int, dict[str, dict[str, float]]] = {}
+    transport_edges = {edge.edge_id: edge for edge in config.transport_edges}
+    transport_traces: dict[int, dict[str, TransportAssignmentResult]] = {}
+    environmental_units = {unit.unit_id: unit for unit in config.environmental_units}
+    seasonal_environment = {profile.season: profile for profile in config.seasonal_environment}
+    environment_traces: dict[int, dict[str, dict[str, ExposureResult]]] = {}
+    environment_quality_samples: dict[int, dict[str, list[float]]] = {}
 
     for step in iter_schedule(config.schedule):
         if step.phase is AnnualPhase.PUBLIC_POLICY:
@@ -144,6 +217,79 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                         locations[unit_id] = locations[unit_id].model_copy(
                             update={"accessibility": accessibility[unit_id]}
                         )
+                for (
+                    edge_id,
+                    multiplier,
+                ) in config.policy.transport_capacity_multiplier_by_edge.items():
+                    edge = transport_edges[edge_id]
+                    transport_edges[edge_id] = edge.model_copy(
+                        update={"capacity": edge.capacity * multiplier}
+                    )
+                for unit_id, delta in config.policy.green_fraction_delta_by_unit.items():
+                    environmental = environmental_units[unit_id]
+                    environmental_units[unit_id] = environmental.model_copy(
+                        update={
+                            "green_fraction": min(
+                                1.0, max(0.0, environmental.green_fraction + delta)
+                            )
+                        }
+                    )
+
+        elif step.phase is AnnualPhase.SEASONAL_OPERATIONS:
+            if step.season is None:
+                raise AssertionError("seasonal step must declare a season")
+            assignment: TransportAssignmentResult | None = None
+            if config.transport_assignment is not None:
+                assignment = assign_transport(
+                    tuple(transport_edges.values()),
+                    config.transport_od,
+                    config.transport_assignment,
+                )
+                transport_traces.setdefault(step.year, {})[step.season.value] = assignment
+                opportunities = {unit_id: location.jobs for unit_id, location in locations.items()}
+                if sum(opportunities.values()) > 0.0:
+                    generalized_costs = {
+                        od_key: min(mode_costs.values())
+                        for od_key, mode_costs in assignment.od_mode_costs.items()
+                    }
+                    skim = opportunity_accessibility(
+                        costs=generalized_costs,
+                        opportunities=opportunities,
+                        decay=config.accessibility_decay,
+                    )
+                    for unit_id, value in skim.items():
+                        if unit_id in accessibility:
+                            accessibility[unit_id] = value
+                        if unit_id in locations:
+                            locations[unit_id] = locations[unit_id].model_copy(
+                                update={"accessibility": value}
+                            )
+
+            if config.exposure_weights is not None:
+                seasonal_results: dict[str, ExposureResult] = {}
+                for unit_id, environmental in environmental_units.items():
+                    traffic_pressure = 0.0
+                    if assignment is not None:
+                        traffic_pressure = sum(
+                            assignment.edge_flows[edge_id] / transport_edges[edge_id].capacity
+                            for edge_id in environmental.transport_edge_ids
+                        )
+                    exposure = evaluate_exposure(
+                        environmental,
+                        seasonal_environment[step.season],
+                        traffic_pressure=traffic_pressure,
+                        weights=config.exposure_weights,
+                    )
+                    seasonal_results[unit_id] = exposure
+                    samples = environment_quality_samples.setdefault(step.year, {}).setdefault(
+                        unit_id, []
+                    )
+                    samples.append(exposure.environment_quality)
+                    if unit_id in locations:
+                        locations[unit_id] = locations[unit_id].model_copy(
+                            update={"environment_quality": sum(samples) / len(samples)}
+                        )
+                environment_traces.setdefault(step.year, {})[step.season.value] = seasonal_results
 
         elif step.phase is AnnualPhase.HOUSEHOLD_RELOCATION and config.households:
             for cohort in config.households:
@@ -249,4 +395,9 @@ def run_world(config: WorldRunConfig) -> WorldResult:
         final_rents={unit_id: location.rent for unit_id, location in locations.items()},
         household_taste_shocks=household_taste_shocks,
         firm_taste_shocks=firm_taste_shocks,
+        transport_traces=transport_traces,
+        environment_traces=environment_traces,
+        final_environment_quality={
+            unit_id: location.environment_quality for unit_id, location in locations.items()
+        },
     )
