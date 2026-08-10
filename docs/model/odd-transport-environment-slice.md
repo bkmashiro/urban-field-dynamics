@@ -38,6 +38,11 @@ For each representative season:
 5. update flows with method of successive averages;
 6. compute destination-opportunity accessibility from minimum modal generalized cost.
 
+Reported OD mode shares use the same MSA average of auxiliary modal assignments as the
+reported edge flows. Reported OD mode costs and edge travel times are evaluated once at
+the final MSA flows. Because the solver has a fixed iteration budget, terminal costs need
+not reproduce the averaged shares exactly and are not presented as a converged equilibrium.
+
 A transport policy changes declared edge capacity. It does not directly overwrite the resulting accessibility when the transport slice is configured.
 
 ## 4. Environmental entities

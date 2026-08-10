@@ -241,6 +241,7 @@ def _assign_transport_cached(
     }
     adjacency_by_mode = _modal_adjacency(ordered_edges)
     flows = dict.fromkeys(edge_ids, 0.0)
+    msa_mode_shares: dict[str, dict[TransportMode, float]] = {}
 
     for iteration in range(1, spec.iterations + 1):
         costs = {
@@ -248,9 +249,11 @@ def _assign_transport_cached(
         }
         trees = _path_trees(adjacency_by_mode, costs, destinations_by_origin)
         assigned = dict.fromkeys(edge_ids, 0.0)
+        current_mode_shares: dict[str, dict[TransportMode, float]] = {}
         for od in ordered_ods:
             paths = _mode_paths_from_trees(trees, od)
             shares = _logit_shares(paths, spec.logit_theta)
+            current_mode_shares[f"{od.origin}->{od.destination}"] = shares
             for mode, share in shares.items():
                 for edge_id in paths[mode][1]:
                     assigned[edge_id] += od.demand * share
@@ -259,23 +262,29 @@ def _assign_transport_cached(
             edge_id: flows[edge_id] + step * (assigned[edge_id] - flows[edge_id])
             for edge_id in edge_ids
         }
+        msa_mode_shares = {
+            key: {
+                mode: msa_mode_shares.get(key, {}).get(mode, 0.0)
+                + step * (share - msa_mode_shares.get(key, {}).get(mode, 0.0))
+                for mode, share in shares.items()
+            }
+            for key, shares in current_mode_shares.items()
+        }
 
     travel = {
         edge.edge_id: _travel_minutes(edge, flows[edge.edge_id], spec) for edge in ordered_edges
     }
-    od_mode_shares: dict[str, dict[TransportMode, float]] = {}
     od_mode_costs: dict[str, dict[TransportMode, float]] = {}
     final_trees = _path_trees(adjacency_by_mode, travel, destinations_by_origin)
     for od in ordered_ods:
         key = f"{od.origin}->{od.destination}"
         paths = _mode_paths_from_trees(final_trees, od)
-        od_mode_shares[key] = _logit_shares(paths, spec.logit_theta)
         od_mode_costs[key] = {mode: cost for mode, (cost, _path) in paths.items()}
 
     return TransportAssignmentResult(
         edge_flows=flows,
         edge_travel_minutes=travel,
-        od_mode_shares=od_mode_shares,
+        od_mode_shares=msa_mode_shares,
         od_mode_costs=od_mode_costs,
     )
 

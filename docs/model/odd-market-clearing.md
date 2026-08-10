@@ -16,7 +16,10 @@ Minimum and maximum rents plus maximum annual change are explicit bounds. Cohort
 
 ## Solver and failure
 
-A deterministic relaxed iteration approaches the declared target. The trace records iterations, relative residual history, convergence, and binding rent bounds.
+A deterministic relaxed iteration approaches the declared target. The trace records the
+relative residual observed before each iteration update. `max_residual` is recomputed from
+the final post-update rents, so after an exhausted iteration budget it can be smaller than
+the last history entry. The result also records convergence and binding rent bounds.
 
 `require_convergence` raises `MarketClearingError` after the declared iteration bound. The scaled fixture enables this fail-closed mode.
 

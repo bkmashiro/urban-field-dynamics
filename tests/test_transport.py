@@ -66,6 +66,27 @@ def test_logit_mode_choice_shifts_demand_to_high_capacity_rail() -> None:
     assert sum(result.edge_flows.values()) == pytest.approx(100.0)
 
 
+def test_reported_mode_shares_match_msa_edge_flows() -> None:
+    demand = 100.0
+    result = assign_transport(
+        (
+            edge("road-aa", mode=TransportMode.ROAD, free_flow_minutes=1.0, capacity=5.0),
+            edge("rail-aa", mode=TransportMode.RAIL, free_flow_minutes=20.0, capacity=1_000.0),
+        ),
+        (ODPair(origin="origin", destination="destination", demand=demand),),
+        TransportAssignmentSpec(
+            bpr_alpha=0.15,
+            bpr_beta=4.0,
+            logit_theta=1.0,
+            iterations=2,
+        ),
+    )
+
+    shares = result.od_mode_shares["origin->destination"]
+    assert result.edge_flows["road-aa"] == pytest.approx(demand * shares[TransportMode.ROAD])
+    assert result.edge_flows["rail-aa"] == pytest.approx(demand * shares[TransportMode.RAIL])
+
+
 def test_assignment_is_deterministic_and_input_order_invariant() -> None:
     edges = (
         edge("road-aa", mode=TransportMode.ROAD, free_flow_minutes=8.0, capacity=30.0),

@@ -94,6 +94,7 @@ def test_market_reports_non_convergence_and_can_fail_closed() -> None:
     assert not diagnostic.converged
     assert diagnostic.iterations == 1
     assert diagnostic.max_residual > 0.0
+    assert diagnostic.max_residual < diagnostic.residual_history[-1]
 
     with pytest.raises(MarketClearingError, match="did not converge"):
         clear_market(
