@@ -31,6 +31,7 @@ class HouseholdCohortSpec(BaseModel):
     environment_weight: NonNegativeFloat
     rent_burden_weight: NonNegativeFloat
     evidence_status: EvidenceStatus
+    equity_group: Identifier = "general"
     service_weight: NonNegativeFloat = 0.0
 
     @property

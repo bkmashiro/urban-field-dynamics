@@ -51,3 +51,4 @@ Haidian forecast.
 - [Scaled 64-world synthetic qualification](docs/model/scaled-qualification-64.md)
 - [Implemented rolling trigger planner](docs/model/odd-rolling-planner.md)
 - [Implemented weighted cohort lifecycle dynamics](docs/model/odd-cohort-dynamics.md)
+- [Implemented cohort-weighted equity observers](docs/model/equity-observers.md)

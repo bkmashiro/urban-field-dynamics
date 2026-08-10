@@ -118,6 +118,14 @@ def _households(anchors: dict[str, str]) -> tuple[HouseholdCohortSpec, ...]:
             environment_weight=environment_weight,
             rent_burden_weight=rent_weight,
             service_weight=service_weight,
+            equity_group={
+                "students": "students",
+                "research-talent": "research-talent",
+                "service-workers": "service-workers",
+                "older-adults": "older-adults",
+                "families-with-children": "families",
+                "accessibility-needs": "accessibility-needs",
+            }[cohort_id],
             evidence_status=SYNTHETIC,
         )
         for (
