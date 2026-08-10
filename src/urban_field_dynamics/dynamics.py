@@ -35,6 +35,9 @@ class FirmBirthPrototype(BaseModel):
     accessibility_weight: NonNegativeFloat
     agglomeration_weight: NonNegativeFloat
     rent_weight: NonNegativeFloat
+    labor_demand_share: UnitInterval = 1.0
+    skill_requirement: Identifier = "general"
+    offered_wage: PositiveFloat = 1.0
     evidence_status: EvidenceStatus
 
 
@@ -210,6 +213,9 @@ def evolve_firms(
                 accessibility_weight=prototype.accessibility_weight,
                 agglomeration_weight=prototype.agglomeration_weight,
                 rent_weight=prototype.rent_weight,
+                labor_demand_share=prototype.labor_demand_share,
+                skill_requirement=prototype.skill_requirement,
+                offered_wage=prototype.offered_wage,
                 evidence_status=prototype.evidence_status,
             )
         )

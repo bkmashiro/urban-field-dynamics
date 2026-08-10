@@ -15,6 +15,7 @@ from urban_field_dynamics.environment import (
     ExposureWeights,
     SeasonalEnvironmentSpec,
 )
+from urban_field_dynamics.labor import LaborMatchingSpec
 from urban_field_dynamics.market import MarketClearingSpec
 from urban_field_dynamics.schedule import ScheduleConfig
 from urban_field_dynamics.transport import (
@@ -65,6 +66,7 @@ class CampaignSpec(BaseModel):
     firms: tuple[FirmCohortSpec, ...] = ()
     household_dynamics: HouseholdDynamicsSpec | None = None
     firm_dynamics: FirmDynamicsSpec | None = None
+    labor_matching: LaborMatchingSpec | None = None
     market: MarketClearingSpec | None = None
     agent_taste_shock_scale: NonNegativeFloat = 0.0
     transport_edges: tuple[TransportEdgeSpec, ...] = ()
@@ -100,6 +102,10 @@ class ArmSummary(BaseModel):
     mean_household_relocations: float = 0.0
     mean_firm_relocations: float = 0.0
     mean_seasonal_heat_range: float = 0.0
+    mean_final_unemployment_rate: float | None = None
+    mean_final_vacancy_rate: float | None = None
+    mean_final_commute_minutes: float | None = None
+    mean_final_firm_wage: float = 0.0
 
 
 class CampaignSummary(BaseModel):
@@ -210,6 +216,14 @@ def _campaign_result(
                     ]
                     ranges.append(max(values) - min(values))
             seasonal_heat_ranges.append(sum(ranges) / len(ranges) if ranges else 0.0)
+        final_labor = [
+            run.labor_traces[max(run.labor_traces)] for run in arm_runs if run.labor_traces
+        ]
+        final_wages = [
+            sum(run.final_firm_wages.values()) / len(run.final_firm_wages)
+            for run in arm_runs
+            if run.final_firm_wages
+        ]
         arm_summaries[arm.arm_id] = ArmSummary(
             world_count=len(arm_runs),
             worlds_with_redevelopment=sum(count > 0 for count in counts),
@@ -223,6 +237,22 @@ def _campaign_result(
             mean_household_relocations=(sum(household_relocations) / len(household_relocations)),
             mean_firm_relocations=sum(firm_relocations) / len(firm_relocations),
             mean_seasonal_heat_range=(sum(seasonal_heat_ranges) / len(seasonal_heat_ranges)),
+            mean_final_unemployment_rate=(
+                sum(item.unemployment_rate for item in final_labor) / len(final_labor)
+                if final_labor
+                else None
+            ),
+            mean_final_vacancy_rate=(
+                sum(item.vacancy_rate for item in final_labor) / len(final_labor)
+                if final_labor
+                else None
+            ),
+            mean_final_commute_minutes=(
+                sum(item.mean_commute_minutes for item in final_labor) / len(final_labor)
+                if final_labor
+                else None
+            ),
+            mean_final_firm_wage=(sum(final_wages) / len(final_wages) if final_wages else 0.0),
         )
 
     return CampaignResult(

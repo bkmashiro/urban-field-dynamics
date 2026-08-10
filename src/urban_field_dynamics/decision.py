@@ -182,7 +182,7 @@ def campaign_decision_diagnostics(
 
     if len({result.campaign_id, equity.campaign_id, qualification.campaign_id}) != 1:
         raise ValueError("decision inputs must share one campaign ID")
-    objectives = (
+    objectives = [
         ObjectiveSpec(objective_id="accessibility", direction=ObjectiveDirection.MAXIMIZE),
         ObjectiveSpec(objective_id="environment", direction=ObjectiveDirection.MAXIMIZE),
         ObjectiveSpec(objective_id="rent", direction=ObjectiveDirection.MINIMIZE),
@@ -190,27 +190,52 @@ def campaign_decision_diagnostics(
         ObjectiveSpec(objective_id="environment-gap", direction=ObjectiveDirection.MINIMIZE),
         ObjectiveSpec(objective_id="service-gap", direction=ObjectiveDirection.MINIMIZE),
         ObjectiveSpec(objective_id="rent-burden-gap", direction=ObjectiveDirection.MINIMIZE),
+    ]
+    labor_available = all(
+        result.summary.arms.get(arm_id) is not None
+        and result.summary.arms[arm_id].mean_final_unemployment_rate is not None
+        and result.summary.arms[arm_id].mean_final_commute_minutes is not None
+        and equity.arms.get(arm_id) is not None
+        and equity.arms[arm_id].unemployment_rate_gap is not None
+        and equity.arms[arm_id].commute_minutes_gap is not None
+        for arm_id in policy_arm_ids
     )
+    if labor_available:
+        objectives.extend(
+            (
+                ObjectiveSpec(objective_id="unemployment", direction=ObjectiveDirection.MINIMIZE),
+                ObjectiveSpec(objective_id="commute", direction=ObjectiveDirection.MINIMIZE),
+                ObjectiveSpec(
+                    objective_id="unemployment-gap", direction=ObjectiveDirection.MINIMIZE
+                ),
+                ObjectiveSpec(objective_id="commute-gap", direction=ObjectiveDirection.MINIMIZE),
+            )
+        )
     vectors: list[ArmObjectiveVector] = []
     for arm_id in policy_arm_ids:
         if arm_id not in result.summary.arms or arm_id not in equity.arms:
             raise ValueError(f"policy arm missing from decision inputs: {arm_id}")
         summary = result.summary.arms[arm_id]
         group = equity.arms[arm_id]
-        vectors.append(
-            ArmObjectiveVector(
-                arm_id=arm_id,
-                values={
-                    "accessibility": summary.mean_final_accessibility,
-                    "environment": summary.mean_final_environment_quality,
-                    "rent": summary.mean_final_rent,
-                    "accessibility-gap": group.accessibility_gap,
-                    "environment-gap": group.environment_quality_gap,
-                    "service-gap": group.service_access_gap,
-                    "rent-burden-gap": group.rent_burden_gap,
-                },
+        values = {
+            "accessibility": summary.mean_final_accessibility,
+            "environment": summary.mean_final_environment_quality,
+            "rent": summary.mean_final_rent,
+            "accessibility-gap": group.accessibility_gap,
+            "environment-gap": group.environment_quality_gap,
+            "service-gap": group.service_access_gap,
+            "rent-burden-gap": group.rent_burden_gap,
+        }
+        if labor_available:
+            values.update(
+                {
+                    "unemployment": float(summary.mean_final_unemployment_rate),
+                    "commute": float(summary.mean_final_commute_minutes),
+                    "unemployment-gap": float(group.unemployment_rate_gap),
+                    "commute-gap": float(group.commute_minutes_gap),
+                }
             )
-        )
+        vectors.append(ArmObjectiveVector(arm_id=arm_id, values=values))
     return CampaignDecisionDiagnostics(
         campaign_id=result.campaign_id,
         pareto=pareto_front(tuple(vectors), objectives),

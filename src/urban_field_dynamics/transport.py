@@ -129,6 +129,48 @@ def _mode_paths(
     return paths
 
 
+def generalized_cost_skim(
+    edges: tuple[TransportEdgeSpec, ...],
+    edge_travel_minutes: dict[str, float],
+    *,
+    nodes: tuple[str, ...],
+) -> dict[str, float]:
+    """Return all reachable directed node-pair costs without adding assignment demand."""
+
+    edge_ids = {edge.edge_id for edge in edges}
+    if set(edge_travel_minutes) != edge_ids:
+        raise ValueError("edge travel costs must match transport edge IDs")
+    ordered_nodes = tuple(sorted(set(nodes)))
+    best_across_modes: dict[str, float] = {f"{node}->{node}": 0.0 for node in ordered_nodes}
+    for mode in TransportMode:
+        adjacency: dict[str, list[TransportEdgeSpec]] = {}
+        for edge in edges:
+            if edge.mode is mode:
+                adjacency.setdefault(edge.from_node, []).append(edge)
+        for outgoing in adjacency.values():
+            outgoing.sort(key=lambda edge: edge.edge_id)
+        for origin in ordered_nodes:
+            queue: list[tuple[float, str]] = [(0.0, origin)]
+            best: dict[str, float] = {origin: 0.0}
+            while queue:
+                cost, node = heapq.heappop(queue)
+                if cost > best.get(node, math.inf):
+                    continue
+                for edge in adjacency.get(node, []):
+                    candidate = (
+                        cost + edge_travel_minutes[edge.edge_id] + edge.generalized_penalty_minutes
+                    )
+                    if candidate < best.get(edge.to_node, math.inf):
+                        best[edge.to_node] = candidate
+                        heapq.heappush(queue, (candidate, edge.to_node))
+            for destination, cost in best.items():
+                if destination not in ordered_nodes:
+                    continue
+                key = f"{origin}->{destination}"
+                best_across_modes[key] = min(best_across_modes.get(key, math.inf), cost)
+    return best_across_modes
+
+
 def _logit_shares(
     paths: dict[TransportMode, tuple[float, tuple[str, ...]]],
     theta: float,

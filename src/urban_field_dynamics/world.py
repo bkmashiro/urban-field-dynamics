@@ -29,6 +29,7 @@ from urban_field_dynamics.environment import (
     evaluate_exposure,
 )
 from urban_field_dynamics.event_tape import EventTapeSpec, generate_event_tape
+from urban_field_dynamics.labor import LaborMatchingResult, LaborMatchingSpec, match_labor
 from urban_field_dynamics.market import MarketClearingSpec, clear_market
 from urban_field_dynamics.redevelopment import evaluate_redevelopment
 from urban_field_dynamics.schedule import AnnualPhase, ScheduleConfig, Season, iter_schedule
@@ -38,6 +39,7 @@ from urban_field_dynamics.transport import (
     TransportAssignmentSpec,
     TransportEdgeSpec,
     assign_transport,
+    generalized_cost_skim,
     opportunity_accessibility,
 )
 
@@ -59,6 +61,7 @@ class MechanismSwitches(BaseModel):
     public_coordination_enabled: bool = True
     service_provision_enabled: bool = True
     cohort_dynamics_enabled: bool = True
+    labor_matching_enabled: bool = True
 
 
 class TriggerMetric(StrEnum):
@@ -123,6 +126,7 @@ class WorldRunConfig(BaseModel):
     firms: tuple[FirmCohortSpec, ...] = ()
     household_dynamics: HouseholdDynamicsSpec | None = None
     firm_dynamics: FirmDynamicsSpec | None = None
+    labor_matching: LaborMatchingSpec | None = None
     market: MarketClearingSpec | None = None
     agent_taste_shock_scale: NonNegativeFloat = 0.0
     transport_edges: tuple[TransportEdgeSpec, ...] = ()
@@ -187,6 +191,8 @@ class WorldRunConfig(BaseModel):
                 for prototype in self.firm_dynamics.birth_prototypes
             ):
                 raise ValueError("firm birth prototype initial_unit_id must exist in locations")
+            if self.labor_matching is not None and not (self.households and self.firms):
+                raise ValueError("labor matching requires household and firm cohorts")
         elif self.household_dynamics is not None or self.firm_dynamics is not None:
             raise ValueError("agent dynamics require configured locations and cohorts")
 
@@ -272,6 +278,8 @@ class WorldResult(BaseModel):
     firm_birth_shocks: dict[int, dict[str, float]] = Field(default_factory=dict)
     firm_births: dict[int, tuple[str, ...]] = Field(default_factory=dict)
     firm_deaths: dict[int, tuple[str, ...]] = Field(default_factory=dict)
+    labor_traces: dict[int, LaborMatchingResult] = Field(default_factory=dict)
+    final_firm_wages: dict[str, float] = Field(default_factory=dict)
     transport_traces: dict[int, dict[str, TransportAssignmentResult]] = Field(default_factory=dict)
     environment_traces: dict[int, dict[str, dict[str, ExposureResult]]] = Field(
         default_factory=dict
@@ -366,6 +374,7 @@ def run_world(config: WorldRunConfig) -> WorldResult:
     firm_birth_shocks: dict[int, dict[str, float]] = {}
     firm_births: dict[int, tuple[str, ...]] = {}
     firm_deaths: dict[int, tuple[str, ...]] = {}
+    labor_traces: dict[int, LaborMatchingResult] = {}
     transport_edges = {edge.edge_id: edge for edge in config.transport_edges}
     transport_traces: dict[int, dict[str, TransportAssignmentResult]] = {}
     environmental_units = {unit.unit_id: unit for unit in config.environmental_units}
@@ -634,6 +643,50 @@ def run_world(config: WorldRunConfig) -> WorldResult:
             locations = {location.unit_id: location for location in allocation.locations}
             firm_taste_shocks[step.year] = allocation.taste_shocks
 
+        elif (
+            step.phase is AnnualPhase.LABOR_MATCHING
+            and config.labor_matching is not None
+            and config.mechanisms.labor_matching_enabled
+        ):
+            seasonal_transport = transport_traces.get(step.year, {})
+            latest_assignment = seasonal_transport.get(Season.WINTER.value)
+            commute_costs = (
+                generalized_cost_skim(
+                    tuple(transport_edges.values()),
+                    latest_assignment.edge_travel_minutes,
+                    nodes=tuple(locations),
+                )
+                if latest_assignment is not None
+                else {}
+            )
+            labor = match_labor(
+                current_households,
+                current_firms,
+                household_locations=household_locations,
+                firm_locations=firm_locations,
+                commute_costs=commute_costs,
+                spec=config.labor_matching,
+            )
+            labor_traces[step.year] = labor
+            adjusted_firms: list[FirmCohortSpec] = []
+            for cohort in current_firms:
+                adjusted_employees = labor.adjusted_firm_employees[cohort.cohort_id]
+                unit_id = firm_locations[cohort.cohort_id]
+                location = locations[unit_id]
+                adjusted_jobs = location.jobs - cohort.employees + adjusted_employees
+                if adjusted_jobs < -1e-9:
+                    raise ValueError("labor adjustment would make location jobs negative")
+                locations[unit_id] = location.model_copy(update={"jobs": max(0.0, adjusted_jobs)})
+                adjusted_firms.append(
+                    cohort.model_copy(
+                        update={
+                            "employees": adjusted_employees,
+                            "offered_wage": labor.adjusted_firm_wages[cohort.cohort_id],
+                        }
+                    )
+                )
+            current_firms = tuple(adjusted_firms)
+
         elif step.phase is AnnualPhase.MARKET_CLEARING and config.market is not None:
             locations = {
                 location.unit_id: location
@@ -709,6 +762,8 @@ def run_world(config: WorldRunConfig) -> WorldResult:
         firm_birth_shocks=firm_birth_shocks,
         firm_births=firm_births,
         firm_deaths=firm_deaths,
+        labor_traces=labor_traces,
+        final_firm_wages={cohort.cohort_id: cohort.offered_wage for cohort in current_firms},
         transport_traces=transport_traces,
         environment_traces=environment_traces,
         final_environment_quality={

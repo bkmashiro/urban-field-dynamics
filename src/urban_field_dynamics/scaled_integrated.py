@@ -17,6 +17,7 @@ from urban_field_dynamics.environment import (
     ExposureWeights,
     SeasonalEnvironmentSpec,
 )
+from urban_field_dynamics.labor import LaborMatchingSpec
 from urban_field_dynamics.market import MarketClearingSpec
 from urban_field_dynamics.schedule import ScheduleConfig, Season
 from urban_field_dynamics.spatial import (
@@ -126,6 +127,30 @@ def _households(anchors: dict[str, str]) -> tuple[HouseholdCohortSpec, ...]:
                 "families-with-children": "families",
                 "accessibility-needs": "accessibility-needs",
             }[cohort_id],
+            labor_force_share={
+                "students": 0.40,
+                "research-talent": 0.80,
+                "service-workers": 0.85,
+                "older-adults": 0.15,
+                "families-with-children": 0.65,
+                "accessibility-needs": 0.50,
+            }[cohort_id],
+            skill_group={
+                "students": "general",
+                "research-talent": "knowledge",
+                "service-workers": "service",
+                "older-adults": "general",
+                "families-with-children": "general",
+                "accessibility-needs": "service",
+            }[cohort_id],
+            reservation_wage={
+                "students": 65.0,
+                "research-talent": 130.0,
+                "service-workers": 75.0,
+                "older-adults": 70.0,
+                "families-with-children": 100.0,
+                "accessibility-needs": 75.0,
+            }[cohort_id],
             evidence_status=SYNTHETIC,
         )
         for (
@@ -160,6 +185,22 @@ def _firms(anchors: dict[str, str]) -> tuple[FirmCohortSpec, ...]:
             accessibility_weight=accessibility_weight,
             agglomeration_weight=agglomeration_weight,
             rent_weight=rent_weight,
+            skill_requirement={
+                "ai-research": "knowledge",
+                "technology-services": "knowledge",
+                "daily-commerce": "service",
+                "logistics-operations": "service",
+                "cultural-activity": "service",
+                "public-education": "knowledge",
+            }[cohort_id],
+            offered_wage={
+                "ai-research": 165.0,
+                "technology-services": 145.0,
+                "daily-commerce": 90.0,
+                "logistics-operations": 100.0,
+                "cultural-activity": 110.0,
+                "public-education": 125.0,
+            }[cohort_id],
             evidence_status=SYNTHETIC,
         )
         for (
@@ -398,6 +439,11 @@ def _arms(
             mechanisms=MechanismSwitches(cohort_dynamics_enabled=False),
         ),
         CampaignArm(
+            arm_id="p3-no-labor-matching",
+            policy=p3,
+            mechanisms=MechanismSwitches(labor_matching_enabled=False),
+        ),
+        CampaignArm(
             arm_id="p3-no-public-coordination",
             policy=p3,
             mechanisms=MechanismSwitches(public_coordination_enabled=False),
@@ -423,11 +469,15 @@ def _firm_dynamics(anchors: dict[str, str]) -> FirmDynamicsSpec:
             FirmBirthPrototype(
                 prototype_id="startup-north",
                 initial_unit_id=anchors["focus-north"],
+                skill_requirement="knowledge",
+                offered_wage=125.0,
                 **shared,
             ),
             FirmBirthPrototype(
                 prototype_id="startup-south",
                 initial_unit_id=anchors["focus-south"],
+                skill_requirement="service",
+                offered_wage=95.0,
                 **shared,
             ),
         ),
@@ -472,6 +522,13 @@ def scaled_integrated_campaign(
             growth_volatility=0.002,
         ),
         firm_dynamics=_firm_dynamics(anchors),
+        labor_matching=LaborMatchingSpec(
+            max_commute_minutes=75.0,
+            commute_cost_per_minute=0.8,
+            wage_adjustment_rate=0.08,
+            unemployment_wage_relief=0.5,
+            vacancy_retention_rate=0.95,
+        ),
         market=MarketClearingSpec(
             target_occupancy=0.65,
             adjustment_rate=0.15,

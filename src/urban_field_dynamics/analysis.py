@@ -272,6 +272,15 @@ def integrated_qualification_diagnostics(
             metric=CampaignMetric.FINAL_EMPLOYMENT,
             checkpoints=checkpoints,
         )
+    if "p3-no-labor-matching" in arm_ids:
+        comparisons["labor-matching-rent-effect"] = paired_convergence(
+            result,
+            baseline_arm="p3-no-labor-matching",
+            comparator_arm="p3",
+            metric=CampaignMetric.FINAL_RENT,
+            higher_is_better=False,
+            checkpoints=checkpoints,
+        )
     world_count = len(next(iter(comparisons.values())).world_ids)
     return QualificationDiagnostics(
         campaign_id=result.campaign_id,

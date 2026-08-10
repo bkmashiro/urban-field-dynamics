@@ -60,6 +60,9 @@ def test_firm_death_expansion_and_birth_have_independent_tapes() -> None:
         accessibility_weight=1.0,
         agglomeration_weight=0.0,
         rent_weight=0.0,
+        labor_demand_share=0.8,
+        skill_requirement="research",
+        offered_wage=120.0,
         evidence_status=EvidenceStatus.SYNTHETIC,
     )
     spec = FirmDynamicsSpec(
@@ -74,6 +77,8 @@ def test_firm_death_expansion_and_birth_have_independent_tapes() -> None:
     by_id = {cohort.cohort_id: cohort for cohort in result.cohorts}
     assert by_id["firm-aa"].employees == pytest.approx(22.0)
     assert by_id["startup-2027"].employees == 5.0
+    assert by_id["startup-2027"].skill_requirement == "research"
+    assert by_id["startup-2027"].offered_wage == 120.0
     assert result.deaths == ()
     assert result.births == ("startup-2027",)
     assert set(result.death_shocks) == {"firm-aa"}

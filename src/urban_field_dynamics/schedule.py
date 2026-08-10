@@ -32,6 +32,7 @@ class AnnualPhase(StrEnum):
     SEASONAL_OPERATIONS = "seasonal_operations"
     HOUSEHOLD_RELOCATION = "household_relocation"
     FIRM_DYNAMICS = "firm_dynamics"
+    LABOR_MATCHING = "labor_matching"
     MARKET_CLEARING = "market_clearing"
     DEVELOPMENT = "development"
     INFRASTRUCTURE_AGING = "infrastructure_aging"
@@ -71,6 +72,7 @@ class ScheduleStep:
 _ANNUAL_PRIVATE_AND_OBSERVATION_PHASES = (
     AnnualPhase.HOUSEHOLD_RELOCATION,
     AnnualPhase.FIRM_DYNAMICS,
+    AnnualPhase.LABOR_MATCHING,
     AnnualPhase.MARKET_CLEARING,
     AnnualPhase.DEVELOPMENT,
     AnnualPhase.INFRASTRUCTURE_AGING,

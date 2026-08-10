@@ -67,3 +67,4 @@ Haidian forecast.
 - [Implemented cohort-weighted equity observers](docs/model/equity-observers.md)
 - [Implemented Pareto, tail-harm, and tipping diagnostics](docs/model/decision-diagnostics.md)
 - [Implemented matched policy-intensity sweeps](docs/model/policy-intensity-sweeps.md)
+- [Implemented weighted labor matching and wage/vacancy feedback](docs/model/odd-labor-matching.md)

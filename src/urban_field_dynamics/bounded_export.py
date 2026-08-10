@@ -81,6 +81,12 @@ def _representative_worlds(
             "final_jobs": world.final_jobs,
             "final_household_populations": world.final_household_populations,
             "final_firm_employees": world.final_firm_employees,
+            "final_firm_wages": world.final_firm_wages,
+            "final_labor": (
+                world.labor_traces[max(world.labor_traces)].model_dump(mode="json")
+                if world.labor_traces
+                else None
+            ),
             "firm_births": world.firm_births,
             "firm_deaths": world.firm_deaths,
             "final_rents": world.final_rents,

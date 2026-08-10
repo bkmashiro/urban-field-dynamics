@@ -21,6 +21,8 @@ class EquityGroupSummary(BaseModel):
     mean_service_access: float
     mean_rent_burden: float = Field(ge=0.0)
     mean_relocation_rate: float = Field(ge=0.0, le=1.0)
+    mean_unemployment_rate: float | None = Field(default=None, ge=0.0, le=1.0)
+    mean_commute_minutes: float | None = Field(default=None, ge=0.0)
 
 
 class ArmEquitySummary(BaseModel):
@@ -34,6 +36,8 @@ class ArmEquitySummary(BaseModel):
     service_access_gap: float = Field(ge=0.0)
     rent_burden_gap: float = Field(ge=0.0)
     relocation_rate_gap: float = Field(ge=0.0)
+    unemployment_rate_gap: float | None = Field(default=None, ge=0.0)
+    commute_minutes_gap: float | None = Field(default=None, ge=0.0)
 
 
 class CampaignEquitySummary(BaseModel):
@@ -48,10 +52,14 @@ def _weighted_mean(values: list[tuple[float, float]]) -> float:
     return sum(value * item_weight for value, item_weight in values) / weight
 
 
-def _world_groups(spec: CampaignSpec, world: WorldResult) -> dict[str, dict[str, float]]:
+def _world_groups(
+    spec: CampaignSpec,
+    world: WorldResult,
+) -> dict[str, dict[str, float | None]]:
     accumulators: dict[str, dict[str, list[tuple[float, float]]]] = defaultdict(
         lambda: defaultdict(list)
     )
+    final_labor = world.labor_traces[max(world.labor_traces)] if world.labor_traces else None
     for cohort in spec.households:
         population = world.final_household_populations.get(cohort.cohort_id, cohort.population)
         location_id = world.household_locations[cohort.cohort_id]
@@ -76,14 +84,35 @@ def _world_groups(spec: CampaignSpec, world: WorldResult) -> dict[str, dict[str,
         for metric, value in metrics.items():
             accumulators[cohort.equity_group][metric].append((value, population))
 
+        labor_force = population * cohort.labor_force_share
+        if final_labor is not None and labor_force > 0.0:
+            unemployment = final_labor.household_unemployed.get(cohort.cohort_id, labor_force)
+            accumulators[cohort.equity_group]["unemployment"].append(
+                (unemployment / labor_force, labor_force)
+            )
+            employed = final_labor.household_employed.get(cohort.cohort_id, 0.0)
+            if employed > 0.0:
+                accumulators[cohort.equity_group]["commute"].append(
+                    (
+                        final_labor.household_mean_commute_minutes.get(cohort.cohort_id, 0.0),
+                        employed,
+                    )
+                )
+
     return {
         group_id: {
-            metric: (
-                sum(value for value, _ in values)
-                if metric == "population"
-                else _weighted_mean(values)
-            )
-            for metric, values in metrics.items()
+            **{
+                metric: (
+                    sum(value for value, _ in values)
+                    if metric == "population"
+                    else _weighted_mean(values)
+                )
+                for metric, values in metrics.items()
+            },
+            "unemployment": (
+                _weighted_mean(metrics["unemployment"]) if metrics.get("unemployment") else None
+            ),
+            "commute": _weighted_mean(metrics["commute"]) if metrics.get("commute") else None,
         }
         for group_id, metrics in accumulators.items()
     }
@@ -92,6 +121,17 @@ def _world_groups(spec: CampaignSpec, world: WorldResult) -> dict[str, dict[str,
 def _gap(groups: dict[str, EquityGroupSummary], attribute: str) -> float:
     values = [float(getattr(group, attribute)) for group in groups.values()]
     return max(values) - min(values) if values else 0.0
+
+
+def _optional_gap(groups: dict[str, EquityGroupSummary], attribute: str) -> float | None:
+    values = [getattr(group, attribute) for group in groups.values()]
+    present = [float(value) for value in values if value is not None]
+    return max(present) - min(present) if len(present) >= 2 else None
+
+
+def _optional_fmean(values: list[float | None]) -> float | None:
+    present = [value for value in values if value is not None]
+    return statistics.fmean(present) if present else None
 
 
 def observe_campaign_equity(
@@ -133,6 +173,12 @@ def observe_campaign_equity(
                 mean_relocation_rate=statistics.fmean(
                     item[group_id]["relocation"] for item in observed
                 ),
+                mean_unemployment_rate=_optional_fmean(
+                    [item[group_id]["unemployment"] for item in observed]
+                ),
+                mean_commute_minutes=_optional_fmean(
+                    [item[group_id]["commute"] for item in observed]
+                ),
             )
             for group_id in group_ids
         }
@@ -145,5 +191,7 @@ def observe_campaign_equity(
             service_access_gap=_gap(groups, "mean_service_access"),
             rent_burden_gap=_gap(groups, "mean_rent_burden"),
             relocation_rate_gap=_gap(groups, "mean_relocation_rate"),
+            unemployment_rate_gap=_optional_gap(groups, "mean_unemployment_rate"),
+            commute_minutes_gap=_optional_gap(groups, "mean_commute_minutes"),
         )
     return CampaignEquitySummary(campaign_id=result.campaign_id, arms=arm_summaries)

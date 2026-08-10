@@ -24,6 +24,10 @@ def test_scaled_equity_observer_reports_declared_groups_and_disparities() -> Non
     assert p3.environment_quality_gap >= 0.0
     assert p3.service_access_gap >= 0.0
     assert p3.rent_burden_gap >= 0.0
+    assert p3.unemployment_rate_gap is not None
+    assert p3.commute_minutes_gap is not None
+    assert all(group.mean_unemployment_rate is not None for group in p3.groups.values())
+    assert equity.arms["p3-no-labor-matching"].unemployment_rate_gap is None
 
 
 def test_equity_observer_distinguishes_policy_arms_without_claiming_direction() -> None:

@@ -33,6 +33,9 @@ class HouseholdCohortSpec(BaseModel):
     evidence_status: EvidenceStatus
     equity_group: Identifier = "general"
     service_weight: NonNegativeFloat = 0.0
+    labor_force_share: UnitInterval = 0.0
+    skill_group: Identifier = "general"
+    reservation_wage: NonNegativeFloat = 0.0
 
     @property
     def housing_demand(self) -> float:
@@ -52,6 +55,9 @@ class FirmCohortSpec(BaseModel):
     agglomeration_weight: NonNegativeFloat
     rent_weight: NonNegativeFloat
     evidence_status: EvidenceStatus
+    labor_demand_share: UnitInterval = 1.0
+    skill_requirement: Identifier = "general"
+    offered_wage: PositiveFloat = 1.0
 
     @property
     def floor_demand(self) -> float:

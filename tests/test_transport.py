@@ -6,6 +6,7 @@ from urban_field_dynamics.transport import (
     TransportEdgeSpec,
     TransportMode,
     assign_transport,
+    generalized_cost_skim,
     opportunity_accessibility,
 )
 
@@ -91,3 +92,26 @@ def test_opportunity_accessibility_rewards_lower_generalized_cost() -> None:
 
     assert accessibility["near"] > accessibility["far"]
     assert 0.0 <= accessibility["far"] <= accessibility["near"] <= 1.0
+
+
+def test_generalized_cost_skim_covers_declared_nodes_without_adding_demand() -> None:
+    edges = (
+        edge("road-aa", mode=TransportMode.ROAD, free_flow_minutes=8.0, capacity=30.0),
+        edge("rail-aa", mode=TransportMode.RAIL, free_flow_minutes=12.0, capacity=300.0),
+    )
+    assignment = assign_transport(
+        edges,
+        (ODPair(origin="origin", destination="destination", demand=10.0),),
+        assignment_spec(),
+    )
+
+    skim = generalized_cost_skim(
+        edges,
+        assignment.edge_travel_minutes,
+        nodes=("origin", "destination"),
+    )
+
+    assert skim["origin->origin"] == 0.0
+    assert skim["destination->destination"] == 0.0
+    assert skim["origin->destination"] > 0.0
+    assert "destination->origin" not in skim

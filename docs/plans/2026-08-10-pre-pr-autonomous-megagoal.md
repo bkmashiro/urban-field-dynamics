@@ -118,10 +118,10 @@ For bounded campaign work, execute the real exporter and verifier, not only unit
 
 ### Track B — Labor matching
 
-- [ ] Add household labor supply and firm labor demand contracts without individual-level fiction.
-- [ ] Implement deterministic capacity-constrained matching with commute/generalized-cost and skill compatibility.
-- [ ] Integrate annual employment mismatch/wage-pressure feedback and a matched mechanism ablation.
-- [ ] Add world/equity observers for unemployment, vacancies, commute burden, and group disparity.
+- [x] Add household labor supply and firm labor demand contracts without individual-level fiction.
+- [x] Implement deterministic capacity-constrained matching with commute/generalized-cost and skill compatibility.
+- [x] Integrate annual employment mismatch/wage-pressure feedback and a matched mechanism ablation.
+- [x] Add world/equity observers for unemployment, vacancies, commute burden, and group disparity.
 
 ### Track C — Infrastructure and budget ledgers
 
@@ -190,6 +190,7 @@ If blocked, record the blocker here and report exact modified files, tests, Git 
 
 - 2026-08-10: Roadmap created from live commit `39901ff`; current 32-world/384-run long-horizon bounded qualification and 107-test gate already verified. Next: Track A sweep evidence completion.
 - 2026-08-10: Track A complete. Added per-world matched sweep responses, random-identity validation, bounded hash/replay evidence, stable CLI, and a real 8-world × 5-level × 2026–2050 export/replay canary (1.1 MiB). Next: Track B labor matching.
+- 2026-08-10: Track B complete. Added deterministic weighted labor flow, complete congested transport skims without extra demand, wage and vacancy-retention feedback, firm/location job-state consistency, equity observers, a P3 matched ablation, bounded evidence, and long-horizon execution. Next: Track C infrastructure and budget ledgers.
 
 ## Short prompt
 

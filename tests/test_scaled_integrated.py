@@ -15,7 +15,7 @@ def test_scaled_integrated_contract_has_1200_cells_and_48_explicit_zones() -> No
     }
     assert len(spec.households) == 6
     assert len(spec.firms) == 6
-    assert len(spec.arms) == 12
+    assert len(spec.arms) == 13
     p3 = next(arm for arm in spec.arms if arm.arm_id == "p3")
     assert len(p3.policy.service_quality_delta_by_location) == 48
     assert len(p3.policy.service_capacity_multiplier_by_location) == 48
@@ -31,7 +31,7 @@ def test_scaled_integrated_contract_has_1200_cells_and_48_explicit_zones() -> No
 def test_scaled_integrated_one_world_executes_all_matched_arms() -> None:
     result = run_campaign(scaled_integrated_campaign(world_count=1))
 
-    assert result.summary.run_count == 12
+    assert result.summary.run_count == 13
     worlds = [run.world for run in result.runs]
     assert all(len(world.final_uses) == 1_200 for world in worlds)
     assert all(len(world.final_rents) == 48 for world in worlds)
@@ -61,3 +61,7 @@ def test_scaled_integrated_one_world_executes_all_matched_arms() -> None:
     assert diagnostics.comparisons["service-provision-effect"].checkpoints[-1].mean_delta > 0.0
     assert diagnostics.comparisons["cohort-dynamics-population-effect"].deltas[0] > 0.0
     assert "cohort-dynamics-employment-effect" in diagnostics.comparisons
+    assert "labor-matching-rent-effect" in diagnostics.comparisons
+    assert summaries["p3"].mean_final_unemployment_rate is not None
+    assert 0.0 <= summaries["p3"].mean_final_unemployment_rate <= 1.0
+    assert summaries["p3-no-labor-matching"].mean_final_unemployment_rate is None
