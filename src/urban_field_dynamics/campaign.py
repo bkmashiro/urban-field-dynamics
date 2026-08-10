@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ProcessPoolExecutor
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -127,43 +128,39 @@ class CampaignResult(BaseModel):
     summary: CampaignSummary
 
 
+def _run_world_matrix(spec: CampaignSpec, world_id: int) -> tuple[CampaignRun, ...]:
+    shared = spec.model_dump(exclude={"campaign_id", "model_scope", "world_ids", "arms"})
+    return tuple(
+        CampaignRun(
+            arm_id=arm.arm_id,
+            world=run_world(
+                WorldRunConfig.model_validate(
+                    {
+                        **shared,
+                        "world_id": world_id,
+                        "policy": arm.policy,
+                        "transition_inertia_enabled": arm.transition_inertia_enabled,
+                        "mechanisms": arm.mechanisms,
+                    }
+                )
+            ),
+        )
+        for arm in spec.arms
+    )
+
+
 def run_campaign(spec: CampaignSpec) -> CampaignResult:
     """Run each arm over identical world IDs in deterministic order."""
 
-    runs: list[CampaignRun] = []
-    for world_id in spec.world_ids:
-        for arm in spec.arms:
-            runs.append(
-                CampaignRun(
-                    arm_id=arm.arm_id,
-                    world=run_world(
-                        WorldRunConfig(
-                            root_seed=spec.root_seed,
-                            world_id=world_id,
-                            schedule=spec.schedule,
-                            units=spec.units,
-                            policy=arm.policy,
-                            transition_inertia_enabled=arm.transition_inertia_enabled,
-                            development_shock_scale=spec.development_shock_scale,
-                            mechanisms=arm.mechanisms,
-                            locations=spec.locations,
-                            location_members=spec.location_members,
-                            households=spec.households,
-                            firms=spec.firms,
-                            market=spec.market,
-                            agent_taste_shock_scale=spec.agent_taste_shock_scale,
-                            transport_edges=spec.transport_edges,
-                            transport_od=spec.transport_od,
-                            transport_assignment=spec.transport_assignment,
-                            accessibility_decay=spec.accessibility_decay,
-                            environmental_units=spec.environmental_units,
-                            seasonal_environment=spec.seasonal_environment,
-                            exposure_weights=spec.exposure_weights,
-                        )
-                    ),
-                )
-            )
+    runs = [run for world_id in spec.world_ids for run in _run_world_matrix(spec, world_id)]
 
+    return _campaign_result(spec, tuple(runs))
+
+
+def _campaign_result(
+    spec: CampaignSpec,
+    runs: tuple[CampaignRun, ...],
+) -> CampaignResult:
     arm_summaries: dict[str, ArmSummary] = {}
     for arm in spec.arms:
         arm_runs = [run.world for run in runs if run.arm_id == arm.arm_id]
@@ -227,10 +224,29 @@ def run_campaign(spec: CampaignSpec) -> CampaignResult:
 
     return CampaignResult(
         campaign_id=spec.campaign_id,
-        runs=tuple(runs),
+        runs=runs,
         summary=CampaignSummary(
             run_count=len(runs),
             matched_world_ids=spec.world_ids,
             arms=arm_summaries,
         ),
     )
+
+
+def run_campaign_parallel(
+    spec: CampaignSpec,
+    *,
+    max_workers: int,
+) -> CampaignResult:
+    """Run isolated world matrices in worker processes while preserving order."""
+
+    if max_workers <= 0:
+        raise ValueError("max_workers must be positive")
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        matrices = executor.map(
+            _run_world_matrix,
+            (spec for _ in spec.world_ids),
+            spec.world_ids,
+        )
+        runs = tuple(run for matrix in matrices for run in matrix)
+    return _campaign_result(spec, runs)

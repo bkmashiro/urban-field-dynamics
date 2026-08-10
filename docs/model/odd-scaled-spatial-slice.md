@@ -71,4 +71,10 @@ After adding explicit cycle/bus/rail service-time and capacity interventions, th
 
 ## Remaining boundary
 
-The 48-zone network and all 1,200 cell states remain synthetic. Eight matched worlds are insufficient for robust spatial classification. The next qualification must run at least 32–64 worlds, inspect convergence and harmed-world tails, and avoid treating focus/corridor observer labels as causal inputs.
+The 48-zone network and all 1,200 cell states remain synthetic. Eight matched worlds are insufficient for robust spatial classification. A 64-world short-horizon qualification has been completed separately; its evidence boundary is documented in `scaled-qualification-64.md`.
+
+World-level process parallelism preserves exact scalar results. On the same 8-world 2026–2028 spec, scalar execution took 26.71 seconds and four workers took 9.10 seconds, with identical summary SHA-256, a measured 2.94× wall-clock speedup.
+
+A 2026–2050 canary uses rolling schedule nodes 2026/2030/2035/2040/2045. Eight worlds × ten arms exported and replay-verified in approximately 2 minutes 39 seconds with four workers; the bounded package remained 2.9 MiB. P0/P3 averaged about 1,015 transitions of 1,200 cells and no-inertia about 1,061.5, so the long horizon did not fully saturate the transition observer. The next step is a 32-world long-horizon qualification with convergence and harmed-world diagnostics.
+
+None of these measurements or results upgrade the synthetic cells, zones, cohorts, OD, or environmental fields to empirical Haidian evidence.

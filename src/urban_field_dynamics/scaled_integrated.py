@@ -352,7 +352,11 @@ def _arms(
     )
 
 
-def scaled_integrated_campaign(*, world_count: int = 1) -> CampaignSpec:
+def scaled_integrated_campaign(
+    *,
+    world_count: int = 1,
+    end_year: int = 2028,
+) -> CampaignSpec:
     """Build the scaled synthetic campaign without asserting empirical calibration."""
 
     grid, zoning = _substrate()
@@ -360,15 +364,19 @@ def scaled_integrated_campaign(*, world_count: int = 1) -> CampaignSpec:
     households = _households(anchors)
     firms = _firms(anchors)
     edges, road_edges = _transport(zoning)
+    stage = "canary" if world_count == 8 else "qualification"
+    campaign_id = f"scaled-integrated-{stage}-{world_count}"
+    if end_year != 2028:
+        campaign_id = f"scaled-integrated-{end_year}-{stage}-{world_count}"
     return CampaignSpec(
-        campaign_id=f"scaled-integrated-canary-{world_count}",
+        campaign_id=campaign_id,
         model_scope="1,200-cell and 48-zone integrated synthetic qualification slice",
         root_seed=20260810,
         world_ids=tuple(range(world_count)),
         schedule=ScheduleConfig(
             start_year=2026,
-            end_year=2028,
-            replan_years={2026},
+            end_year=end_year,
+            replan_years={year for year in (2026, 2030, 2035, 2040, 2045) if year <= end_year},
         ),
         units=tuple(unit.spec for unit in grid.units),
         arms=_arms(edges, zoning),

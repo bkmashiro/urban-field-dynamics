@@ -15,6 +15,12 @@ def test_scaled_integrated_contract_has_1200_cells_and_48_explicit_zones() -> No
     assert len(spec.households) == 6
     assert len(spec.firms) == 6
     assert len(spec.arms) == 10
+    assert scaled_integrated_campaign(world_count=32).campaign_id == (
+        "scaled-integrated-qualification-32"
+    )
+    full_horizon = scaled_integrated_campaign(world_count=8, end_year=2050)
+    assert full_horizon.campaign_id == "scaled-integrated-2050-canary-8"
+    assert full_horizon.schedule.replan_years == {2026, 2030, 2035, 2040, 2045}
     assert {edge.mode for edge in spec.transport_edges} == set(TransportMode)
 
 

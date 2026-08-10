@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Any
 
 from urban_field_dynamics.analysis import integrated_qualification_diagnostics
-from urban_field_dynamics.campaign import CampaignResult, CampaignSpec, run_campaign
+from urban_field_dynamics.campaign import (
+    CampaignResult,
+    CampaignSpec,
+    run_campaign,
+    run_campaign_parallel,
+)
 from urban_field_dynamics.morphology import (
     DecisionClassificationSpec,
     classify_decision_categories,
@@ -101,14 +106,25 @@ def _derived_artifacts(
     }
 
 
-def export_bounded_campaign(spec: CampaignSpec, output_dir: Path) -> Path:
+def _execute_campaign(spec: CampaignSpec, max_workers: int | None) -> CampaignResult:
+    if max_workers is None:
+        return run_campaign(spec)
+    return run_campaign_parallel(spec, max_workers=max_workers)
+
+
+def export_bounded_campaign(
+    spec: CampaignSpec,
+    output_dir: Path,
+    *,
+    max_workers: int | None = None,
+) -> Path:
     """Run once and write a bounded derived evidence package."""
 
     output_dir = Path(output_dir)
     if output_dir.exists() and any(output_dir.iterdir()):
         raise FileExistsError(f"export destination is not empty: {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
-    result = run_campaign(spec)
+    result = _execute_campaign(spec, max_workers)
     artifacts = _derived_artifacts(spec, result)
     for name, content in artifacts.items():
         (output_dir / name).write_bytes(content)
@@ -145,7 +161,11 @@ def _load_manifest(output_dir: Path) -> dict[str, Any]:
         raise BoundedExportVerificationError("manifest.json is missing or invalid") from exc
 
 
-def verify_bounded_export(output_dir: Path) -> CampaignResult:
+def verify_bounded_export(
+    output_dir: Path,
+    *,
+    max_workers: int | None = None,
+) -> CampaignResult:
     """Verify hashes, rerun the full campaign, and rebuild every derived byte."""
 
     output_dir = Path(output_dir)
@@ -168,7 +188,7 @@ def verify_bounded_export(output_dir: Path) -> CampaignResult:
         )
     except (ValueError, UnicodeDecodeError) as exc:
         raise BoundedExportVerificationError("campaign config parsing failed") from exc
-    replayed = run_campaign(spec)
+    replayed = _execute_campaign(spec, max_workers)
     expected = _derived_artifacts(spec, replayed)
     for name, content in expected.items():
         if (output_dir / name).read_bytes() != content:
