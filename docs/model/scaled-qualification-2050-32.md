@@ -4,14 +4,20 @@ Status: current-engine mechanism qualification; not calibration, forecast or imp
 
 ## Frozen execution
 
-- Engine source: signed commit `64a8e7df522e82e8b0e6ead0edf0063d79955350`.
+- Engine source: signed commit `518110263155b67295a2e31359cbb9a9cbdd0750`.
 - Runtime authority: Python 3.12.
 - Campaign: `scaled-integrated-2050-qualification-32`.
 - Matrix: 32 matched worlds × 13 policy/ablation arms = 416 runs.
 - Horizon: 2026–2050.
-- Export: 32.58 seconds; independent full replay: 31.13 seconds with four workers.
+- Export: 27.95 seconds; independent full replay: 26.39 seconds with four workers.
 - Bounded artifact: 25,243,317 bytes across eight hash-manifested derived files plus the manifest.
+- Artifact path: `results/scaled-integrated-2050-qualification-32-5181102-bounded/`.
+- Manifest SHA-256: `972383e823db3cace81b37764907a7e95b68ede4422d9f38554350ce5fe04b35`.
 - `provenance.json` pins the source revision; replay did not read Git.
+
+The seven non-provenance derived files are byte-identical to the earlier `64a8e7d`
+qualification. The later transport fix changed only the public full-result mode-share
+diagnostic, which is not part of this bounded representative-world schema.
 
 ## P0–P3 ensemble outcomes
 
@@ -54,6 +60,6 @@ P0, P1, P2 and P3 were all non-dominated across the 13 declared objectives. The 
 
 ## Qualification decision
 
-Proceed to a 64-world matched rerun to test 32-to-64 stability, especially cohort employment heterogeneity, P3 rent harm, agglomeration, and group tails. Do not jump directly to 128 worlds: more Monte Carlo samples cannot resolve missing empirical data or structural uncertainty.
+The subsequent 64-world matched run found no selected directional reversal. A 128-world run was therefore rejected as low-value synthetic oversampling: more Monte Carlo samples cannot resolve missing empirical data or structural uncertainty.
 
 No official boundary, parcel, building, ownership, OD, capacity, count, rent, firm, wage, environmental, service or public-finance dataset was used. This document is synthetic mechanism qualification only.

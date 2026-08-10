@@ -195,6 +195,7 @@ If blocked, record the blocker here and report exact modified files, tests, Git 
 - 2026-08-10: Track F complete. Exact transport optimisation at signed commit `64a8e7d` preserved the 130,847,617-byte campaign SHA while reducing the one-world 2050 workload from 39.78 s to 2.70 s. Frozen 32- and 64-world bounded campaigns both exported and fully replayed; the 64-world matrix covered 832 runs in 160.00 s total. No selected direction flipped from 32 to 64, so 128 worlds were rejected as low-value synthetic oversampling.
 - 2026-08-10: Track G evidence complete. Hardened stress exports against stale or undeclared files, fixed 32-world sweep labelling, reduced the core wheel to NumPy and Pydantic, built and fresh-installed wheel/sdist, and replayed the final 8-world stress canary in 26.49 s total. The local review packet records exact commits, manifests, limitations, and external-action gates.
 - 2026-08-10: Pre-PR closeout complete. Final gates passed with 137 tests, Ruff, formatting, lock, wheel/sdist, Markdown links, clean diff and signed commits. Work stops locally before any push, release, deployment or PR action.
+- 2026-08-10: A late delegated-review transcript exposed a reproducible P2 transport diagnostic mismatch: terminal-cost mode shares could contradict MSA edge flows. Signed commit `5181102` now reports MSA-averaged shares; all non-share campaign bytes remained identical. The final-source 32-world qualification, 8-world sweep and 8-world stress packages all exported and fully replayed; the suite now has 138 tests.
 
 ## Short prompt
 

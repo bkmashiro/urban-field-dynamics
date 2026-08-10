@@ -4,10 +4,14 @@ Status: replay-verified synthetic engineering canary; not a qualified forecast d
 
 ## Frozen execution
 
-- Source: signed commit `e0156df0f024076f8f6d6f0bfe08c2429263b45d`.
+- Source: signed commit `518110263155b67295a2e31359cbb9a9cbdd0750`.
 - Matrix: 8 matched worlds, P0–P3, six scenarios, 25 annual steps.
-- Export 14.37 seconds; full replay 12.12 seconds.
-- Artifact: `results/scaled-stress-2050-canary-8-e0156df/`, 793,886 bytes.
+- Export 12.08 seconds; full replay 12.01 seconds.
+- Artifact: `results/scaled-stress-2050-canary-8-5181102/`, 793,886 bytes.
+- Manifest SHA-256: `7849b5e7665dc2534da1ecc09e24d3850c6ddb4c37fcc046e74aa77012cca3d5`.
+
+The stress config and derived evidence are byte-identical to the earlier `e0156df`
+canary; only source provenance and the manifest changed.
 
 ## Directional checks
 
