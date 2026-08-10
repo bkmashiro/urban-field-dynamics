@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -53,6 +54,32 @@ class MechanismSwitches(BaseModel):
     service_provision_enabled: bool = True
 
 
+class TriggerMetric(StrEnum):
+    MEAN_RENT = "mean_rent"
+    MEAN_ACCESSIBILITY = "mean_accessibility"
+    MEAN_ENVIRONMENT_QUALITY = "mean_environment_quality"
+    MAX_HOUSING_OCCUPANCY = "max_housing_occupancy"
+    MAX_EMPLOYMENT_OCCUPANCY = "max_employment_occupancy"
+
+
+class TriggerOperator(StrEnum):
+    GE = "ge"
+    LE = "le"
+
+
+class TriggerMode(StrEnum):
+    ANY = "any"
+    ALL = "all"
+
+
+class PolicyTriggerSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
+
+    metric: TriggerMetric
+    operator: TriggerOperator
+    threshold: NonNegativeFloat
+
+
 class PolicySpec(BaseModel):
     """One public intervention applied at an explicit replanning year."""
 
@@ -67,6 +94,8 @@ class PolicySpec(BaseModel):
     green_fraction_delta_by_unit: dict[str, AccessibilityDelta] = Field(default_factory=dict)
     service_quality_delta_by_location: dict[str, AccessibilityDelta] = Field(default_factory=dict)
     service_capacity_multiplier_by_location: dict[str, PositiveFloat] = Field(default_factory=dict)
+    activation_triggers: tuple[PolicyTriggerSpec, ...] = ()
+    trigger_mode: TriggerMode = TriggerMode.ALL
 
 
 class WorldRunConfig(BaseModel):
@@ -206,6 +235,7 @@ class WorldResult(BaseModel):
     root_seed: int
     world_id: int
     policy_id: str
+    policy_activation_year: int | None = None
     transition_inertia_enabled: bool
     redevelopment_years: dict[str, int | None]
     final_accessibility: dict[str, float]
@@ -232,6 +262,61 @@ class WorldResult(BaseModel):
         return sum(year is not None for year in self.redevelopment_years.values())
 
 
+def _trigger_value(
+    metric: TriggerMetric,
+    *,
+    accessibility: dict[str, float],
+    locations: dict[str, LocationState],
+) -> float:
+    if metric is TriggerMetric.MEAN_ACCESSIBILITY:
+        return sum(accessibility.values()) / len(accessibility)
+    if metric is TriggerMetric.MEAN_RENT:
+        return sum(location.rent for location in locations.values()) / max(len(locations), 1)
+    if metric is TriggerMetric.MEAN_ENVIRONMENT_QUALITY:
+        return sum(location.environment_quality for location in locations.values()) / max(
+            len(locations), 1
+        )
+    if metric is TriggerMetric.MAX_HOUSING_OCCUPANCY:
+        return max(
+            (
+                location.households / max(location.housing_capacity, 1.0)
+                for location in locations.values()
+            ),
+            default=0.0,
+        )
+    if metric is TriggerMetric.MAX_EMPLOYMENT_OCCUPANCY:
+        return max(
+            (
+                location.jobs / max(location.employment_capacity, 1.0)
+                for location in locations.values()
+            ),
+            default=0.0,
+        )
+    raise AssertionError(f"unsupported trigger metric: {metric}")
+
+
+def _policy_should_activate(
+    policy: PolicySpec,
+    *,
+    year: int,
+    accessibility: dict[str, float],
+    locations: dict[str, LocationState],
+) -> bool:
+    if year < policy.intervention_year:
+        return False
+    if not policy.activation_triggers:
+        return year == policy.intervention_year
+    evaluations = []
+    for trigger in policy.activation_triggers:
+        value = _trigger_value(trigger.metric, accessibility=accessibility, locations=locations)
+        evaluations.append(
+            value >= trigger.threshold
+            if trigger.operator is TriggerOperator.GE
+            else value <= trigger.threshold
+        )
+    return any(evaluations) if policy.trigger_mode is TriggerMode.ANY else all(evaluations)
+
+
 def run_world(config: WorldRunConfig) -> WorldResult:
     """Run the qualified redevelopment-only vertical slice."""
 
@@ -253,13 +338,20 @@ def run_world(config: WorldRunConfig) -> WorldResult:
     seasonal_environment = {profile.season: profile for profile in config.seasonal_environment}
     environment_traces: dict[int, dict[str, dict[str, ExposureResult]]] = {}
     environment_quality_samples: dict[int, dict[str, list[float]]] = {}
+    policy_activation_year: int | None = None
 
     for step in iter_schedule(config.schedule):
         if (
             step.phase is AnnualPhase.PUBLIC_POLICY
             and config.mechanisms.public_coordination_enabled
         ):
-            if step.year == config.policy.intervention_year:
+            if policy_activation_year is None and _policy_should_activate(
+                config.policy,
+                year=step.year,
+                accessibility=accessibility,
+                locations=locations,
+            ):
+                policy_activation_year = step.year
                 for unit_id in unit_ids:
                     delta = (
                         config.policy.accessibility_delta
@@ -530,6 +622,7 @@ def run_world(config: WorldRunConfig) -> WorldResult:
         root_seed=config.root_seed,
         world_id=config.world_id,
         policy_id=config.policy.policy_id,
+        policy_activation_year=policy_activation_year,
         transition_inertia_enabled=config.transition_inertia_enabled,
         redevelopment_years=redevelopment_years,
         final_accessibility=accessibility,

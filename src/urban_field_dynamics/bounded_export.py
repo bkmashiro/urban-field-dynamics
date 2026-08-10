@@ -61,6 +61,7 @@ def _representative_worlds(
         )
         representatives[arm.arm_id] = {
             "world_id": world.world_id,
+            "policy_activation_year": world.policy_activation_year,
             "redevelopment_years": {
                 unit_id: year
                 for unit_id, year in world.redevelopment_years.items()

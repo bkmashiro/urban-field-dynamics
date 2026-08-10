@@ -49,3 +49,4 @@ Haidian forecast.
 - [Integrated 64/128-world synthetic qualification](docs/model/integrated-qualification-128.md)
 - [Implemented 1,200-unit spatial substrate and morphology observers](docs/model/odd-scaled-spatial-slice.md)
 - [Scaled 64-world synthetic qualification](docs/model/scaled-qualification-64.md)
+- [Implemented rolling trigger planner](docs/model/odd-rolling-planner.md)
