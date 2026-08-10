@@ -16,6 +16,7 @@ from urban_field_dynamics.campaign import (
     run_campaign,
     run_campaign_parallel,
 )
+from urban_field_dynamics.decision import campaign_decision_diagnostics
 from urban_field_dynamics.equity import observe_campaign_equity
 from urban_field_dynamics.morphology import (
     DecisionClassificationSpec,
@@ -27,6 +28,7 @@ _ARTIFACT_NAMES = (
     "summary.json",
     "qualification-diagnostics.json",
     "equity-summary.json",
+    "decision-diagnostics.json",
     "decision-classifications.json",
     "representative-worlds.json",
 )
@@ -107,11 +109,13 @@ def _derived_artifacts(
         checkpoints=_checkpoints(len(spec.world_ids)),
     )
     equity = observe_campaign_equity(spec, result)
+    decision = campaign_decision_diagnostics(result, equity, diagnostics)
     return {
         "campaign-config.json": _canonical_json(spec.model_dump(mode="json")),
         "summary.json": _canonical_json(result.summary.model_dump(mode="json")),
         "qualification-diagnostics.json": _canonical_json(diagnostics.model_dump(mode="json")),
         "equity-summary.json": _canonical_json(equity.model_dump(mode="json")),
+        "decision-diagnostics.json": _canonical_json(decision.model_dump(mode="json")),
         "decision-classifications.json": _canonical_json(classifications.model_dump(mode="json")),
         "representative-worlds.json": _canonical_json(_representative_worlds(spec, result)),
     }

@@ -52,3 +52,4 @@ Haidian forecast.
 - [Implemented rolling trigger planner](docs/model/odd-rolling-planner.md)
 - [Implemented weighted cohort lifecycle dynamics](docs/model/odd-cohort-dynamics.md)
 - [Implemented cohort-weighted equity observers](docs/model/equity-observers.md)
+- [Implemented Pareto, tail-harm, and tipping diagnostics](docs/model/decision-diagnostics.md)
