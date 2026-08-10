@@ -29,6 +29,11 @@ from urban_field_dynamics.environment import (
     evaluate_exposure,
 )
 from urban_field_dynamics.event_tape import EventTapeSpec, generate_event_tape
+from urban_field_dynamics.infrastructure import (
+    InfrastructureAnnualTrace,
+    InfrastructureLedgerSpec,
+    allocate_budget,
+)
 from urban_field_dynamics.labor import LaborMatchingResult, LaborMatchingSpec, match_labor
 from urban_field_dynamics.market import MarketClearingSpec, clear_market
 from urban_field_dynamics.redevelopment import evaluate_redevelopment
@@ -104,6 +109,8 @@ class PolicySpec(BaseModel):
     green_fraction_delta_by_unit: dict[str, AccessibilityDelta] = Field(default_factory=dict)
     service_quality_delta_by_location: dict[str, AccessibilityDelta] = Field(default_factory=dict)
     service_capacity_multiplier_by_location: dict[str, PositiveFloat] = Field(default_factory=dict)
+    public_capital_cost: NonNegativeFloat = 0.0
+    annual_operating_cost: NonNegativeFloat = 0.0
     activation_triggers: tuple[PolicyTriggerSpec, ...] = ()
     trigger_mode: TriggerMode = TriggerMode.ALL
 
@@ -127,6 +134,7 @@ class WorldRunConfig(BaseModel):
     household_dynamics: HouseholdDynamicsSpec | None = None
     firm_dynamics: FirmDynamicsSpec | None = None
     labor_matching: LaborMatchingSpec | None = None
+    infrastructure_ledger: InfrastructureLedgerSpec | None = None
     market: MarketClearingSpec | None = None
     agent_taste_shock_scale: NonNegativeFloat = 0.0
     transport_edges: tuple[TransportEdgeSpec, ...] = ()
@@ -280,6 +288,7 @@ class WorldResult(BaseModel):
     firm_deaths: dict[int, tuple[str, ...]] = Field(default_factory=dict)
     labor_traces: dict[int, LaborMatchingResult] = Field(default_factory=dict)
     final_firm_wages: dict[str, float] = Field(default_factory=dict)
+    infrastructure_traces: dict[int, InfrastructureAnnualTrace] = Field(default_factory=dict)
     transport_traces: dict[int, dict[str, TransportAssignmentResult]] = Field(default_factory=dict)
     environment_traces: dict[int, dict[str, dict[str, ExposureResult]]] = Field(
         default_factory=dict
@@ -382,6 +391,12 @@ def run_world(config: WorldRunConfig) -> WorldResult:
     environment_traces: dict[int, dict[str, dict[str, ExposureResult]]] = {}
     environment_quality_samples: dict[int, dict[str, list[float]]] = {}
     policy_activation_year: int | None = None
+    infrastructure_traces: dict[int, InfrastructureAnnualTrace] = {}
+    annual_public_spend: dict[int, float] = {}
+    cumulative_public_spend = 0.0
+    capital_allocations: dict[int, tuple[float, float, float]] = {}
+    operating_costs: dict[int, float] = {}
+    redevelopment_costs: dict[int, float] = {}
 
     for step in iter_schedule(config.schedule):
         if (
@@ -395,11 +410,28 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                 locations=locations,
             ):
                 policy_activation_year = step.year
+                funding_fraction = 1.0
+                if config.infrastructure_ledger is not None:
+                    allocation = allocate_budget(
+                        config.infrastructure_ledger,
+                        requested=config.policy.public_capital_cost,
+                        annual_spent=annual_public_spend.get(step.year, 0.0),
+                        cumulative_spent=cumulative_public_spend,
+                        allow_capital_rationing=True,
+                    )
+                    annual_public_spend[step.year] = allocation.annual_spent_after
+                    cumulative_public_spend = allocation.cumulative_spent_after
+                    funding_fraction = allocation.funding_fraction
+                    capital_allocations[step.year] = (
+                        allocation.requested,
+                        allocation.funded,
+                        funding_fraction,
+                    )
                 for unit_id in unit_ids:
                     delta = (
                         config.policy.accessibility_delta
                         + config.policy.accessibility_delta_by_unit.get(unit_id, 0.0)
-                    )
+                    ) * funding_fraction
                     accessibility[unit_id] = min(
                         1.0,
                         max(
@@ -413,14 +445,19 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                         )
                 for (
                     edge_id,
-                    multiplier,
+                    target_multiplier,
                 ) in config.policy.transport_capacity_multiplier_by_edge.items():
                     edge = transport_edges[edge_id]
+                    multiplier = 1.0 + funding_fraction * (target_multiplier - 1.0)
                     transport_edges[edge_id] = edge.model_copy(
                         update={"capacity": edge.capacity * multiplier}
                     )
-                for edge_id, multiplier in config.policy.transport_time_multiplier_by_edge.items():
+                for (
+                    edge_id,
+                    target_multiplier,
+                ) in config.policy.transport_time_multiplier_by_edge.items():
                     edge = transport_edges[edge_id]
+                    multiplier = 1.0 + funding_fraction * (target_multiplier - 1.0)
                     transport_edges[edge_id] = edge.model_copy(
                         update={
                             "free_flow_minutes": edge.free_flow_minutes * multiplier,
@@ -434,7 +471,11 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                     environmental_units[unit_id] = environmental.model_copy(
                         update={
                             "green_fraction": min(
-                                1.0, max(0.0, environmental.green_fraction + delta)
+                                1.0,
+                                max(
+                                    0.0,
+                                    environmental.green_fraction + delta * funding_fraction,
+                                ),
                             )
                         }
                     )
@@ -454,12 +495,18 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                     location = locations[location_id]
                     locations[location_id] = location.model_copy(
                         update={
-                            "service_quality": min(1.0, max(0.0, location.service_quality + delta))
+                            "service_quality": min(
+                                1.0,
+                                max(
+                                    0.0,
+                                    location.service_quality + delta * funding_fraction,
+                                ),
+                            )
                         }
                     )
                 for (
                     location_id,
-                    multiplier,
+                    target_multiplier,
                 ) in (
                     config.policy.service_capacity_multiplier_by_location.items()
                     if config.mechanisms.service_provision_enabled
@@ -468,9 +515,27 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                     location = locations[location_id]
                     if location.service_capacity is None:
                         raise AssertionError("validated service capacity cannot be absent")
+                    multiplier = 1.0 + funding_fraction * (target_multiplier - 1.0)
                     locations[location_id] = location.model_copy(
                         update={"service_capacity": location.service_capacity * multiplier}
                     )
+
+        elif step.phase is AnnualPhase.INFRASTRUCTURE_BUDGET:
+            if (
+                config.infrastructure_ledger is not None
+                and policy_activation_year is not None
+                and step.year > policy_activation_year
+            ):
+                allocation = allocate_budget(
+                    config.infrastructure_ledger,
+                    requested=config.policy.annual_operating_cost,
+                    annual_spent=annual_public_spend.get(step.year, 0.0),
+                    cumulative_spent=cumulative_public_spend,
+                    allow_capital_rationing=False,
+                )
+                annual_public_spend[step.year] = allocation.annual_spent_after
+                cumulative_public_spend = allocation.cumulative_spent_after
+                operating_costs[step.year] = allocation.funded
 
         elif step.phase is AnnualPhase.SEASONAL_OPERATIONS:
             if step.season is None:
@@ -730,10 +795,77 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                     current_use[unit_id] = initial.candidate_use
                     asset_age[unit_id] = 0
 
+            if config.infrastructure_ledger is not None:
+                transition_count = sum(year == step.year for year in redevelopment_years.values())
+                requested = (
+                    transition_count
+                    * config.infrastructure_ledger.redevelopment_public_cost_per_transition
+                )
+                allocation = allocate_budget(
+                    config.infrastructure_ledger,
+                    requested=requested,
+                    annual_spent=annual_public_spend.get(step.year, 0.0),
+                    cumulative_spent=cumulative_public_spend,
+                    allow_capital_rationing=False,
+                )
+                annual_public_spend[step.year] = allocation.annual_spent_after
+                cumulative_public_spend = allocation.cumulative_spent_after
+                redevelopment_costs[step.year] = allocation.funded
+
         elif step.phase is AnnualPhase.INFRASTRUCTURE_AGING:
             for unit_id in unit_ids:
                 if redevelopment_years[unit_id] != step.year:
                     asset_age[unit_id] += 1
+
+        elif step.phase is AnnualPhase.OBSERVATION and config.infrastructure_ledger is not None:
+            latest_transport = transport_traces.get(step.year, {}).get(Season.WINTER.value)
+            transport_utilization = (
+                {
+                    edge_id: flow / transport_edges[edge_id].capacity
+                    for edge_id, flow in latest_transport.edge_flows.items()
+                }
+                if latest_transport is not None
+                else {}
+            )
+            service_utilization = {
+                location_id: location.households / max(location.service_capacity, 1e-9)
+                for location_id, location in locations.items()
+                if location.service_capacity is not None
+            }
+            service_unmet = {
+                location_id: max(0.0, location.households - location.service_capacity)
+                for location_id, location in locations.items()
+                if location.service_capacity is not None
+            }
+            capital_requested, capital_funded, capital_fraction = capital_allocations.get(
+                step.year, (0.0, 0.0, 1.0)
+            )
+            annual_spend = annual_public_spend.get(step.year, 0.0)
+            infrastructure_traces[step.year] = InfrastructureAnnualTrace(
+                year=step.year,
+                capital_requested=capital_requested,
+                capital_funded=capital_funded,
+                capital_funding_fraction=capital_fraction,
+                operating_cost=operating_costs.get(step.year, 0.0),
+                redevelopment_public_cost=redevelopment_costs.get(step.year, 0.0),
+                annual_public_spend=annual_spend,
+                cumulative_public_spend=cumulative_public_spend,
+                annual_budget_remaining=max(
+                    0.0, config.infrastructure_ledger.annual_budget - annual_spend
+                ),
+                cumulative_budget_remaining=max(
+                    0.0,
+                    config.infrastructure_ledger.cumulative_budget - cumulative_public_spend,
+                ),
+                transport_utilization_by_edge=transport_utilization,
+                transport_overloaded_edges=tuple(
+                    sorted(
+                        edge_id for edge_id, value in transport_utilization.items() if value > 1.0
+                    )
+                ),
+                service_utilization_by_location=service_utilization,
+                service_unmet_demand_by_location=service_unmet,
+            )
 
     return WorldResult(
         root_seed=config.root_seed,
@@ -764,6 +896,7 @@ def run_world(config: WorldRunConfig) -> WorldResult:
         firm_deaths=firm_deaths,
         labor_traces=labor_traces,
         final_firm_wages={cohort.cohort_id: cohort.offered_wage for cohort in current_firms},
+        infrastructure_traces=infrastructure_traces,
         transport_traces=transport_traces,
         environment_traces=environment_traces,
         final_environment_quality={

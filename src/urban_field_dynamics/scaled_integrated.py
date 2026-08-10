@@ -17,6 +17,10 @@ from urban_field_dynamics.environment import (
     ExposureWeights,
     SeasonalEnvironmentSpec,
 )
+from urban_field_dynamics.infrastructure import (
+    BudgetRationingMode,
+    InfrastructureLedgerSpec,
+)
 from urban_field_dynamics.labor import LaborMatchingSpec
 from urban_field_dynamics.market import MarketClearingSpec
 from urban_field_dynamics.schedule import ScheduleConfig, Season
@@ -385,17 +389,23 @@ def _arms(
     p1 = PolicySpec(
         policy_id="p1",
         intervention_year=2026,
+        public_capital_cost=120.0,
+        annual_operating_cost=4.0,
         transport_capacity_multiplier_by_edge=transit_multipliers,
         transport_time_multiplier_by_edge=transit_time_multipliers,
     )
     p2 = PolicySpec(
         policy_id="p2",
         intervention_year=2026,
+        public_capital_cost=90.0,
+        annual_operating_cost=3.0,
         green_fraction_delta_by_unit=green_delta,
     )
     p3 = PolicySpec(
         policy_id="p3",
         intervention_year=2026,
+        public_capital_cost=240.0,
+        annual_operating_cost=8.0,
         transport_capacity_multiplier_by_edge=transit_multipliers,
         transport_time_multiplier_by_edge=transit_time_multipliers,
         green_fraction_delta_by_unit=green_delta,
@@ -528,6 +538,12 @@ def scaled_integrated_campaign(
             wage_adjustment_rate=0.08,
             unemployment_wage_relief=0.5,
             vacancy_retention_rate=0.95,
+        ),
+        infrastructure_ledger=InfrastructureLedgerSpec(
+            annual_budget=300.0,
+            cumulative_budget=5_000.0,
+            capital_rationing=BudgetRationingMode.FAIL_CLOSED,
+            redevelopment_public_cost_per_transition=0.02,
         ),
         market=MarketClearingSpec(
             target_occupancy=0.65,

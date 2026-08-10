@@ -29,6 +29,7 @@ class AnnualPhase(StrEnum):
     """Process phases in one simulation year."""
 
     PUBLIC_POLICY = "public_policy"
+    INFRASTRUCTURE_BUDGET = "infrastructure_budget"
     SEASONAL_OPERATIONS = "seasonal_operations"
     HOUSEHOLD_RELOCATION = "household_relocation"
     FIRM_DYNAMICS = "firm_dynamics"
@@ -86,6 +87,8 @@ def iter_schedule(config: ScheduleConfig) -> Iterator[ScheduleStep]:
     for year in range(config.start_year, config.end_year + 1):
         if year in config.replan_years:
             yield ScheduleStep(year=year, phase=AnnualPhase.PUBLIC_POLICY)
+
+        yield ScheduleStep(year=year, phase=AnnualPhase.INFRASTRUCTURE_BUDGET)
 
         for season in Season:
             yield ScheduleStep(

@@ -101,6 +101,8 @@ def scale_policy(
         service_capacity_multiplier_by_location=_scale_multipliers(
             target.service_capacity_multiplier_by_location, intensity
         ),
+        public_capital_cost=target.public_capital_cost * intensity,
+        annual_operating_cost=target.annual_operating_cost * intensity,
     )
     return PolicySpec.model_validate(values)
 

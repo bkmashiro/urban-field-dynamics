@@ -65,3 +65,9 @@ def test_scaled_integrated_one_world_executes_all_matched_arms() -> None:
     assert summaries["p3"].mean_final_unemployment_rate is not None
     assert 0.0 <= summaries["p3"].mean_final_unemployment_rate <= 1.0
     assert summaries["p3-no-labor-matching"].mean_final_unemployment_rate is None
+    assert summaries["p3"].mean_cumulative_public_spend is not None
+    assert (
+        summaries["p3"].mean_cumulative_public_spend > summaries["p0"].mean_cumulative_public_spend
+    )
+    assert summaries["p3"].mean_peak_transport_utilization is not None
+    assert by_arm["p3"].infrastructure_traces

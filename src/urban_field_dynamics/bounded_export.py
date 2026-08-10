@@ -87,6 +87,10 @@ def _representative_worlds(
                 if world.labor_traces
                 else None
             ),
+            "infrastructure_traces": {
+                year: trace.model_dump(mode="json")
+                for year, trace in world.infrastructure_traces.items()
+            },
             "firm_births": world.firm_births,
             "firm_deaths": world.firm_deaths,
             "final_rents": world.final_rents,

@@ -125,10 +125,10 @@ For bounded campaign work, execute the real exporter and verifier, not only unit
 
 ### Track C — Infrastructure and budget ledgers
 
-- [ ] Add annual infrastructure capacity/utilisation/overload traces for transport, service, and redevelopment demand.
-- [ ] Add policy public-cost declarations and annual/cumulative budget constraints.
-- [ ] Fail closed on budget/capacity violations unless an explicit rationing rule is declared.
-- [ ] Export cost, overload, and unmet-demand traces into bounded evidence.
+- [x] Add annual infrastructure utilisation/overload traces for transport and public service demand.
+- [x] Add policy capital/operating costs plus annual/cumulative budget constraints.
+- [x] Fail closed unless proportional capital rationing is explicitly declared.
+- [x] Export cost, overload, and unmet-demand traces into bounded evidence.
 
 ### Track D — Market clearing hardening
 

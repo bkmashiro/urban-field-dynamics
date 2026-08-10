@@ -15,6 +15,7 @@ from urban_field_dynamics.environment import (
     ExposureWeights,
     SeasonalEnvironmentSpec,
 )
+from urban_field_dynamics.infrastructure import InfrastructureLedgerSpec
 from urban_field_dynamics.labor import LaborMatchingSpec
 from urban_field_dynamics.market import MarketClearingSpec
 from urban_field_dynamics.schedule import ScheduleConfig
@@ -67,6 +68,7 @@ class CampaignSpec(BaseModel):
     household_dynamics: HouseholdDynamicsSpec | None = None
     firm_dynamics: FirmDynamicsSpec | None = None
     labor_matching: LaborMatchingSpec | None = None
+    infrastructure_ledger: InfrastructureLedgerSpec | None = None
     market: MarketClearingSpec | None = None
     agent_taste_shock_scale: NonNegativeFloat = 0.0
     transport_edges: tuple[TransportEdgeSpec, ...] = ()
@@ -106,6 +108,9 @@ class ArmSummary(BaseModel):
     mean_final_vacancy_rate: float | None = None
     mean_final_commute_minutes: float | None = None
     mean_final_firm_wage: float = 0.0
+    mean_cumulative_public_spend: float | None = None
+    mean_peak_transport_utilization: float | None = None
+    mean_final_service_unmet_demand: float | None = None
 
 
 class CampaignSummary(BaseModel):
@@ -224,6 +229,23 @@ def _campaign_result(
             for run in arm_runs
             if run.final_firm_wages
         ]
+        final_infrastructure = [
+            run.infrastructure_traces[max(run.infrastructure_traces)]
+            for run in arm_runs
+            if run.infrastructure_traces
+        ]
+        peak_transport_utilization = [
+            max(
+                (
+                    value
+                    for trace in run.infrastructure_traces.values()
+                    for value in trace.transport_utilization_by_edge.values()
+                ),
+                default=0.0,
+            )
+            for run in arm_runs
+            if run.infrastructure_traces
+        ]
         arm_summaries[arm.arm_id] = ArmSummary(
             world_count=len(arm_runs),
             worlds_with_redevelopment=sum(count > 0 for count in counts),
@@ -253,6 +275,26 @@ def _campaign_result(
                 else None
             ),
             mean_final_firm_wage=(sum(final_wages) / len(final_wages) if final_wages else 0.0),
+            mean_cumulative_public_spend=(
+                sum(item.cumulative_public_spend for item in final_infrastructure)
+                / len(final_infrastructure)
+                if final_infrastructure
+                else None
+            ),
+            mean_peak_transport_utilization=(
+                sum(peak_transport_utilization) / len(peak_transport_utilization)
+                if peak_transport_utilization
+                else None
+            ),
+            mean_final_service_unmet_demand=(
+                sum(
+                    sum(item.service_unmet_demand_by_location.values())
+                    for item in final_infrastructure
+                )
+                / len(final_infrastructure)
+                if final_infrastructure
+                else None
+            ),
         )
 
     return CampaignResult(

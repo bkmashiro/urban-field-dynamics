@@ -211,6 +211,19 @@ def campaign_decision_diagnostics(
                 ObjectiveSpec(objective_id="commute-gap", direction=ObjectiveDirection.MINIMIZE),
             )
         )
+    infrastructure_available = all(
+        result.summary.arms.get(arm_id) is not None
+        and result.summary.arms[arm_id].mean_cumulative_public_spend is not None
+        and result.summary.arms[arm_id].mean_final_service_unmet_demand is not None
+        for arm_id in policy_arm_ids
+    )
+    if infrastructure_available:
+        objectives.extend(
+            (
+                ObjectiveSpec(objective_id="public-cost", direction=ObjectiveDirection.MINIMIZE),
+                ObjectiveSpec(objective_id="service-unmet", direction=ObjectiveDirection.MINIMIZE),
+            )
+        )
     vectors: list[ArmObjectiveVector] = []
     for arm_id in policy_arm_ids:
         if arm_id not in result.summary.arms or arm_id not in equity.arms:
@@ -233,6 +246,13 @@ def campaign_decision_diagnostics(
                     "commute": float(summary.mean_final_commute_minutes),
                     "unemployment-gap": float(group.unemployment_rate_gap),
                     "commute-gap": float(group.commute_minutes_gap),
+                }
+            )
+        if infrastructure_available:
+            values.update(
+                {
+                    "public-cost": float(summary.mean_cumulative_public_spend),
+                    "service-unmet": float(summary.mean_final_service_unmet_demand),
                 }
             )
         vectors.append(ArmObjectiveVector(arm_id=arm_id, values=values))

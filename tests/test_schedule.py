@@ -16,6 +16,7 @@ def test_schedule_has_explicit_replanning_seasons_and_annual_order() -> None:
 
     assert [(step.year, step.phase, step.season) for step in steps] == [
         (2026, AnnualPhase.PUBLIC_POLICY, None),
+        (2026, AnnualPhase.INFRASTRUCTURE_BUDGET, None),
         (2026, AnnualPhase.SEASONAL_OPERATIONS, Season.SPRING),
         (2026, AnnualPhase.SEASONAL_OPERATIONS, Season.SUMMER),
         (2026, AnnualPhase.SEASONAL_OPERATIONS, Season.AUTUMN),
@@ -27,6 +28,7 @@ def test_schedule_has_explicit_replanning_seasons_and_annual_order() -> None:
         (2026, AnnualPhase.DEVELOPMENT, None),
         (2026, AnnualPhase.INFRASTRUCTURE_AGING, None),
         (2026, AnnualPhase.OBSERVATION, None),
+        (2027, AnnualPhase.INFRASTRUCTURE_BUDGET, None),
         (2027, AnnualPhase.SEASONAL_OPERATIONS, Season.SPRING),
         (2027, AnnualPhase.SEASONAL_OPERATIONS, Season.SUMMER),
         (2027, AnnualPhase.SEASONAL_OPERATIONS, Season.AUTUMN),
