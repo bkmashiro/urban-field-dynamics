@@ -53,3 +53,4 @@ Haidian forecast.
 - [Implemented weighted cohort lifecycle dynamics](docs/model/odd-cohort-dynamics.md)
 - [Implemented cohort-weighted equity observers](docs/model/equity-observers.md)
 - [Implemented Pareto, tail-harm, and tipping diagnostics](docs/model/decision-diagnostics.md)
+- [Implemented matched policy-intensity sweeps](docs/model/policy-intensity-sweeps.md)
