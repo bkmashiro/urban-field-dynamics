@@ -103,3 +103,4 @@ Haidian forecast.
 - [Measured exact transport optimisation](docs/model/scaled-runtime-profile.md)
 - [Current 32-world 2026–2050 synthetic qualification](docs/model/scaled-qualification-2050-32.md)
 - [Current 64-world 2026–2050 synthetic qualification](docs/model/scaled-qualification-2050-64.md)
+- [Current 8-world 2026–2050 stress canary](docs/model/scaled-stress-canary-2050-8.md)
