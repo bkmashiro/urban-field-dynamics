@@ -47,3 +47,4 @@ Haidian forecast.
 - [Implemented weighted cohort and market ODD slice](docs/model/odd-agent-market-slice.md)
 - [Implemented transport and seasonal exposure ODD slice](docs/model/odd-transport-environment-slice.md)
 - [Integrated 64/128-world synthetic qualification](docs/model/integrated-qualification-128.md)
+- [Implemented 1,200-unit spatial substrate and morphology observers](docs/model/odd-scaled-spatial-slice.md)
