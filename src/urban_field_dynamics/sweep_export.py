@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from urban_field_dynamics.campaign import CampaignResult, run_campaign, run_campaign_parallel
 from urban_field_dynamics.decision import ThresholdCrossingResult, detect_threshold_crossings
+from urban_field_dynamics.provenance import ArtifactProvenance, artifact_provenance
 from urban_field_dynamics.sweep import (
     BuiltPolicySweep,
     SweepMetric,
@@ -20,7 +21,7 @@ from urban_field_dynamics.sweep import (
     summarize_sweep,
 )
 
-_ARTIFACT_NAMES = ("sweep-config.json", "sweep-evidence.json")
+_ARTIFACT_NAMES = ("sweep-config.json", "provenance.json", "sweep-evidence.json")
 
 
 class SweepExportVerificationError(RuntimeError):
@@ -108,10 +109,15 @@ def _build_evidence(spec: SweepExportSpec, result: CampaignResult) -> SweepEvide
     )
 
 
-def _artifacts(spec: SweepExportSpec, result: CampaignResult) -> dict[str, bytes]:
+def _artifacts(
+    spec: SweepExportSpec,
+    result: CampaignResult,
+    provenance: ArtifactProvenance,
+) -> dict[str, bytes]:
     evidence = _build_evidence(spec, result)
     return {
         "sweep-config.json": _canonical_json(spec.model_dump(mode="json")),
+        "provenance.json": _canonical_json(provenance.model_dump(mode="json")),
         "sweep-evidence.json": _canonical_json(evidence.model_dump(mode="json")),
     }
 
@@ -123,6 +129,7 @@ def export_bounded_sweep(
     metrics: tuple[SweepMetric, ...],
     thresholds: tuple[SweepThresholdSpec, ...] = (),
     max_workers: int | None = None,
+    source_revision: str = "unspecified",
 ) -> Path:
     output_dir = Path(output_dir)
     if output_dir.exists() and any(output_dir.iterdir()):
@@ -130,7 +137,8 @@ def export_bounded_sweep(
     output_dir.mkdir(parents=True, exist_ok=True)
     spec = SweepExportSpec(sweep=sweep, metrics=metrics, thresholds=thresholds)
     result = _execute(spec, max_workers)
-    artifacts = _artifacts(spec, result)
+    provenance = artifact_provenance(source_revision)
+    artifacts = _artifacts(spec, result, provenance)
     for name, content in artifacts.items():
         (output_dir / name).write_bytes(content)
     manifest = {
@@ -181,10 +189,13 @@ def verify_bounded_sweep(
         spec = SweepExportSpec.model_validate_json(
             (output_dir / "sweep-config.json").read_text(encoding="utf-8")
         )
+        provenance = ArtifactProvenance.model_validate_json(
+            (output_dir / "provenance.json").read_text(encoding="utf-8")
+        )
     except (ValueError, UnicodeDecodeError) as exc:
-        raise SweepExportVerificationError("sweep config parsing failed") from exc
+        raise SweepExportVerificationError("sweep config or provenance parsing failed") from exc
     result = _execute(spec, max_workers)
-    expected = _artifacts(spec, result)
+    expected = _artifacts(spec, result, provenance)
     for name, content in expected.items():
         if (output_dir / name).read_bytes() != content:
             raise SweepExportVerificationError(f"replayed artifact differs: {name}")

@@ -10,6 +10,32 @@ def test_cli_exports_and_verifies_smoke_campaign(tmp_path, capsys) -> None:
     assert "verified" in capsys.readouterr().out
 
 
+def test_cli_exports_and_verifies_scaled_bounded_campaign(tmp_path, capsys) -> None:
+    output = tmp_path / "bounded"
+
+    assert (
+        main(
+            [
+                "scaled-qualification",
+                "--output",
+                str(output),
+                "--worlds",
+                "1",
+                "--end-year",
+                "2026",
+                "--workers",
+                "1",
+                "--source-revision",
+                "deadbeef",
+            ]
+        )
+        == 0
+    )
+    assert "exported bounded scaled-integrated-2026-canary-1" in capsys.readouterr().out
+    assert main(["verify-bounded", str(output), "--workers", "1"]) == 0
+    assert "verified bounded scaled-integrated-2026-canary-1" in capsys.readouterr().out
+
+
 def test_cli_exports_and_verifies_scaled_policy_sweep(tmp_path, capsys) -> None:
     output = tmp_path / "sweep"
 

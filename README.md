@@ -36,7 +36,8 @@ Run and fully replay-verify the bounded synthetic P3 intensity canary:
 ```bash
 uv run urban-field scaled-sweep \
   --output results/scaled-p3-intensity-canary-8-bounded \
-  --worlds 8 --end-year 2050 --workers 4
+  --worlds 8 --end-year 2050 --workers 4 \
+  --source-revision "$(git rev-parse HEAD)"
 uv run urban-field verify-sweep \
   results/scaled-p3-intensity-canary-8-bounded --workers 4
 ```
@@ -49,10 +50,26 @@ Run and replay-verify the standard bounded P0–P3 stress matrix:
 ```bash
 uv run urban-field scaled-stress \
   --output results/scaled-stress-2050-canary-8 \
-  --worlds 8 --end-year 2050 --workers 4
+  --worlds 8 --end-year 2050 --workers 4 \
+  --source-revision "$(git rev-parse HEAD)"
 uv run urban-field verify-stress \
   results/scaled-stress-2050-canary-8 --workers 4
 ```
+
+Run and replay-verify the bounded scaled campaign:
+
+```bash
+uv run urban-field scaled-qualification \
+  --output results/scaled-integrated-2050-qualification-32-bounded \
+  --worlds 32 --end-year 2050 --workers 4 \
+  --source-revision "$(git rev-parse HEAD)"
+uv run urban-field verify-bounded \
+  results/scaled-integrated-2050-qualification-32-bounded --workers 4
+```
+
+Each bounded workflow hashes `provenance.json`. Replay reads the frozen source revision from the
+artifact and does not invoke Git. Fewer than 32 worlds are labelled engineering canaries; 32 or
+more remain synthetic qualification, not empirical validation.
 
 The engine also ships an integrated synthetic fixture covering P0–P3, weighted household and
 firm cohorts, annual market feedback, multimodal transport, seasonal relative exposure, and

@@ -35,10 +35,13 @@ def test_bounded_sweep_replays_world_responses_and_threshold_brackets(tmp_path) 
                 threshold_status="synthetic-engineering-demo",
             ),
         ),
+        source_revision="04effa1a5c4c3426366ae910612af28d5d534735",
     )
     verified = verify_bounded_sweep(output)
 
     evidence = json.loads((output / "sweep-evidence.json").read_text())
+    provenance = json.loads((output / "provenance.json").read_text())
+    assert provenance["source_revision"] == "04effa1a5c4c3426366ae910612af28d5d534735"
     assert verified.sweep_id == "scaled-p3-sweep-test"
     assert len(evidence["metrics"]["final_accessibility"]["world_responses"]) == 2
     assert evidence["thresholds"]["final_accessibility"]["threshold_status"] == (

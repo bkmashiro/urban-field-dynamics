@@ -139,7 +139,7 @@ For bounded campaign work, execute the real exporter and verifier, not only unit
 ### Track E — Robustness and decision evidence
 
 - [x] Add declared exogenous stress scenarios whose identity is separate from policy.
-- [ ] Add multi-world stress/sensitivity matrix and replay-verifiable bounded export.
+- [x] Add multi-world stress/sensitivity matrix and replay-verifiable bounded export.
 - [x] Add group tail harm, explicit policy cost, provenance-bearing leverage, and no-score Pareto diagnostics.
 - [x] Add matched-world threshold brackets and stability evidence.
 
@@ -153,10 +153,10 @@ For bounded campaign work, execute the real exporter and verifier, not only unit
 
 ### Track G — Public package and pre-PR closeout
 
-- [ ] Expose integrated/scaled/sweep/stress bounded workflows through stable CLI commands.
+- [x] Expose integrated/scaled/sweep/stress bounded workflows through stable CLI commands.
 - [ ] Execute README/public CLI examples in a clean temporary output root.
 - [ ] Build wheel/sdist and install-smoke the wheel in a temporary environment.
-- [ ] Add provenance fields needed to pin source commit/config without reading Git during replay.
+- [x] Add provenance fields needed to pin source commit/config without reading Git during replay.
 - [ ] Update ODD, limitations, data requirements, qualification, and reproduction docs.
 - [ ] Produce a local pre-PR review packet/checklist identifying exact companion commits/artifacts and permission-gated Haidian changes.
 - [ ] Run final full gates, verify all local commit signatures, and stop before push/PR.
@@ -191,6 +191,7 @@ If blocked, record the blocker here and report exact modified files, tests, Git 
 - 2026-08-10: Roadmap created from live commit `39901ff`; current 32-world/384-run long-horizon bounded qualification and 107-test gate already verified. Next: Track A sweep evidence completion.
 - 2026-08-10: Track A complete. Added per-world matched sweep responses, random-identity validation, bounded hash/replay evidence, stable CLI, and a real 8-world × 5-level × 2026–2050 export/replay canary (1.1 MiB). Next: Track B labor matching.
 - 2026-08-10: Track B complete. Added deterministic weighted labor flow, complete congested transport skims without extra demand, wage and vacancy-retention feedback, firm/location job-state consistency, equity observers, a P3 matched ablation, bounded evidence, and long-horizon execution. Next: Track C infrastructure and budget ledgers.
+- 2026-08-10: Tracks C–E complete. Added fail-closed public budget/capacity ledgers, bounded annual market-response convergence, group tail harm, cost leverage, and a six-scenario matched stress matrix. Frozen commit `04effa1` completed an 8-world × 6-scenario × 4-policy 2050 export/full-replay canary in 401.60 s; artifact size 784 KiB. Next: provenance checkpoint, profiling, and current-HEAD qualification.
 
 ## Short prompt
 

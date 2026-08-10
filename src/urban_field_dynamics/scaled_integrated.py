@@ -512,7 +512,7 @@ def scaled_integrated_campaign(
     households = _households(anchors)
     firms = _firms(anchors)
     edges, road_edges = _transport(zoning)
-    stage = "canary" if world_count == 8 else "qualification"
+    stage = "canary" if world_count < 32 else "qualification"
     campaign_id = f"scaled-integrated-{stage}-{world_count}"
     if end_year != 2028:
         campaign_id = f"scaled-integrated-{end_year}-{stage}-{world_count}"

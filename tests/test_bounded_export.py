@@ -11,8 +11,15 @@ from urban_field_dynamics.integrated import integrated_smoke_campaign
 
 
 def test_bounded_export_replays_without_full_campaign_result(tmp_path) -> None:
-    output = export_bounded_campaign(integrated_smoke_campaign(world_count=2), tmp_path)
+    output = export_bounded_campaign(
+        integrated_smoke_campaign(world_count=2),
+        tmp_path,
+        source_revision="04effa1a5c4c3426366ae910612af28d5d534735",
+    )
     verified = verify_bounded_export(output)
+
+    provenance = json.loads((tmp_path / "provenance.json").read_text(encoding="utf-8"))
+    assert provenance["source_revision"] == "04effa1a5c4c3426366ae910612af28d5d534735"
 
     assert verified.campaign_id == "integrated-qualification-2"
     assert not (tmp_path / "campaign-result.json").exists()

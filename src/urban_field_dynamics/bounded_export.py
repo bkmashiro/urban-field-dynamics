@@ -22,9 +22,11 @@ from urban_field_dynamics.morphology import (
     DecisionClassificationSpec,
     classify_decision_categories,
 )
+from urban_field_dynamics.provenance import ArtifactProvenance, artifact_provenance
 
 _ARTIFACT_NAMES = (
     "campaign-config.json",
+    "provenance.json",
     "summary.json",
     "qualification-diagnostics.json",
     "equity-summary.json",
@@ -107,6 +109,7 @@ def _representative_worlds(
 def _derived_artifacts(
     spec: CampaignSpec,
     result: CampaignResult,
+    provenance: ArtifactProvenance,
 ) -> dict[str, bytes]:
     arm_ids = tuple(arm.arm_id for arm in spec.arms)
     classifications = classify_decision_categories(
@@ -125,6 +128,7 @@ def _derived_artifacts(
     decision = campaign_decision_diagnostics(result, equity, diagnostics, spec=spec)
     return {
         "campaign-config.json": _canonical_json(spec.model_dump(mode="json")),
+        "provenance.json": _canonical_json(provenance.model_dump(mode="json")),
         "summary.json": _canonical_json(result.summary.model_dump(mode="json")),
         "qualification-diagnostics.json": _canonical_json(diagnostics.model_dump(mode="json")),
         "equity-summary.json": _canonical_json(equity.model_dump(mode="json")),
@@ -145,6 +149,7 @@ def export_bounded_campaign(
     output_dir: Path,
     *,
     max_workers: int | None = None,
+    source_revision: str = "unspecified",
 ) -> Path:
     """Run once and write a bounded derived evidence package."""
 
@@ -153,7 +158,8 @@ def export_bounded_campaign(
         raise FileExistsError(f"export destination is not empty: {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
     result = _execute_campaign(spec, max_workers)
-    artifacts = _derived_artifacts(spec, result)
+    provenance = artifact_provenance(source_revision)
+    artifacts = _derived_artifacts(spec, result, provenance)
     for name, content in artifacts.items():
         (output_dir / name).write_bytes(content)
     manifest = {
@@ -214,10 +220,14 @@ def verify_bounded_export(
         spec = CampaignSpec.model_validate_json(
             (output_dir / "campaign-config.json").read_text(encoding="utf-8")
         )
+        provenance = ArtifactProvenance.model_validate_json(
+            (output_dir / "provenance.json").read_text(encoding="utf-8")
+        )
     except (ValueError, UnicodeDecodeError) as exc:
-        raise BoundedExportVerificationError("campaign config parsing failed") from exc
+        message = "campaign config or provenance parsing failed"
+        raise BoundedExportVerificationError(message) from exc
     replayed = _execute_campaign(spec, max_workers)
-    expected = _derived_artifacts(spec, replayed)
+    expected = _derived_artifacts(spec, replayed, provenance)
     for name, content in expected.items():
         if (output_dir / name).read_bytes() != content:
             raise BoundedExportVerificationError(f"replayed artifact differs: {name}")

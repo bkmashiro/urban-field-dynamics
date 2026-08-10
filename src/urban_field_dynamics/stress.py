@@ -17,6 +17,7 @@ from urban_field_dynamics.campaign import (
     run_campaign,
     run_campaign_parallel,
 )
+from urban_field_dynamics.provenance import ArtifactProvenance, artifact_provenance
 
 NonNegativeFloat = Annotated[float, Field(ge=0.0)]
 PositiveFloat = Annotated[float, Field(gt=0.0)]
@@ -429,10 +430,12 @@ def _canonical_json(payload: object) -> bytes:
 def _payloads(
     spec: StressEvidenceSpec,
     results: dict[str, CampaignResult],
+    provenance: ArtifactProvenance,
 ) -> dict[str, bytes]:
     evidence = summarize_stress_matrix(spec, results)
     return {
         "stress-config.json": _canonical_json(spec.model_dump(mode="json")),
+        "provenance.json": _canonical_json(provenance.model_dump(mode="json")),
         "stress-evidence.json": _canonical_json(evidence.model_dump(mode="json")),
     }
 
@@ -455,11 +458,13 @@ def export_stress_matrix(
     output_dir: str | Path,
     *,
     max_workers: int | None = None,
+    source_revision: str = "unspecified",
 ) -> StressMatrixEvidence:
     """Run and write a bounded deterministic stress matrix."""
 
     results = run_stress_matrix(spec.matrix, max_workers=max_workers)
-    payloads = _payloads(spec, results)
+    provenance = artifact_provenance(source_revision)
+    payloads = _payloads(spec, results, provenance)
     target = Path(output_dir)
     target.mkdir(parents=True, exist_ok=True)
     for name, content in payloads.items():
@@ -477,9 +482,11 @@ def verify_stress_export(
 
     target = Path(output_dir)
     config_bytes = (target / "stress-config.json").read_bytes()
+    provenance_bytes = (target / "provenance.json").read_bytes()
     spec = StressEvidenceSpec.model_validate_json(config_bytes)
+    provenance = ArtifactProvenance.model_validate_json(provenance_bytes)
     results = run_stress_matrix(spec.matrix, max_workers=max_workers)
-    rebuilt = _payloads(spec, results)
+    rebuilt = _payloads(spec, results, provenance)
     if rebuilt["stress-config.json"] != config_bytes:
         raise ValueError("stress config is not canonical or changed during replay")
     for name, content in rebuilt.items():

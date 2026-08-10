@@ -6,6 +6,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
+from urban_field_dynamics.bounded_export import export_bounded_campaign, verify_bounded_export
 from urban_field_dynamics.export import export_campaign, verify_export
 from urban_field_dynamics.scaled_integrated import (
     scaled_integrated_campaign,
@@ -31,11 +32,27 @@ def _parser() -> argparse.ArgumentParser:
     verify = subparsers.add_parser("verify", help="verify and replay an export")
     verify.add_argument("export_dir", type=Path)
 
+    qualification = subparsers.add_parser(
+        "scaled-qualification", help="run a bounded scaled synthetic campaign"
+    )
+    qualification.add_argument("--output", required=True, type=Path)
+    qualification.add_argument("--worlds", type=int, default=32)
+    qualification.add_argument("--end-year", type=int, default=2050)
+    qualification.add_argument("--workers", type=int, default=4)
+    qualification.add_argument("--source-revision", default="unspecified")
+
+    verify_bounded = subparsers.add_parser(
+        "verify-bounded", help="verify and replay bounded campaign evidence"
+    )
+    verify_bounded.add_argument("export_dir", type=Path)
+    verify_bounded.add_argument("--workers", type=int, default=4)
+
     sweep = subparsers.add_parser("scaled-sweep", help="run a bounded synthetic P3 intensity sweep")
     sweep.add_argument("--output", required=True, type=Path)
     sweep.add_argument("--worlds", type=int, default=8)
     sweep.add_argument("--end-year", type=int, default=2050)
     sweep.add_argument("--workers", type=int, default=4)
+    sweep.add_argument("--source-revision", default="unspecified")
 
     verify_sweep = subparsers.add_parser(
         "verify-sweep", help="verify and replay bounded sweep evidence"
@@ -48,6 +65,7 @@ def _parser() -> argparse.ArgumentParser:
     stress.add_argument("--worlds", type=int, default=8)
     stress.add_argument("--end-year", type=int, default=2050)
     stress.add_argument("--workers", type=int, default=4)
+    stress.add_argument("--source-revision", default="unspecified")
 
     verify_stress = subparsers.add_parser(
         "verify-stress", help="verify and replay bounded stress evidence"
@@ -69,6 +87,32 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "verify":
         result = verify_export(args.export_dir)
         print(f"verified {result.campaign_id} in {args.export_dir}")
+        return 0
+    if args.command == "scaled-qualification":
+        if args.worlds <= 0:
+            raise ValueError("worlds must be positive")
+        if args.workers <= 0:
+            raise ValueError("workers must be positive")
+        spec = scaled_integrated_campaign(
+            world_count=args.worlds,
+            end_year=args.end_year,
+        )
+        output = export_bounded_campaign(
+            spec,
+            args.output,
+            max_workers=None if args.workers == 1 else args.workers,
+            source_revision=args.source_revision,
+        )
+        print(f"exported bounded {spec.campaign_id} to {output}")
+        return 0
+    if args.command == "verify-bounded":
+        if args.workers <= 0:
+            raise ValueError("workers must be positive")
+        result = verify_bounded_export(
+            args.export_dir,
+            max_workers=None if args.workers == 1 else args.workers,
+        )
+        print(f"verified bounded {result.campaign_id} in {args.export_dir}")
         return 0
     if args.command == "scaled-sweep":
         if args.worlds <= 0:
@@ -100,6 +144,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
             ),
             max_workers=None if args.workers == 1 else args.workers,
+            source_revision=args.source_revision,
         )
         print(f"exported {sweep_id} to {output}")
         return 0
@@ -125,6 +170,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             evidence_spec,
             args.output,
             max_workers=None if args.workers == 1 else args.workers,
+            source_revision=args.source_revision,
         )
         print(f"exported stress matrix {evidence.matrix_id} to {args.output}")
         return 0

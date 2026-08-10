@@ -91,7 +91,11 @@ def test_stress_matrix_export_is_bounded_and_replay_verifiable(tmp_path) -> None
     )
     target = tmp_path / "stress"
 
-    exported = export_stress_matrix(evidence_spec, target)
+    exported = export_stress_matrix(
+        evidence_spec,
+        target,
+        source_revision="04effa1a5c4c3426366ae910612af28d5d534735",
+    )
     verified = verify_stress_export(target)
 
     assert exported == verified
@@ -99,6 +103,7 @@ def test_stress_matrix_export_is_bounded_and_replay_verifiable(tmp_path) -> None
     assert exported.policy_effects
     assert {path.name for path in target.iterdir()} == {
         "manifest.json",
+        "provenance.json",
         "stress-config.json",
         "stress-evidence.json",
     }
