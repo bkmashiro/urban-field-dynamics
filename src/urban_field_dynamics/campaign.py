@@ -111,6 +111,9 @@ class ArmSummary(BaseModel):
     mean_cumulative_public_spend: float | None = None
     mean_peak_transport_utilization: float | None = None
     mean_final_service_unmet_demand: float | None = None
+    market_convergence_fraction: float | None = None
+    mean_market_iterations: float | None = None
+    mean_peak_market_residual: float | None = None
 
 
 class CampaignSummary(BaseModel):
@@ -246,6 +249,12 @@ def _campaign_result(
             for run in arm_runs
             if run.infrastructure_traces
         ]
+        market_traces = [trace for run in arm_runs for trace in run.market_traces.values()]
+        peak_market_residuals = [
+            max((trace.max_residual for trace in run.market_traces.values()), default=0.0)
+            for run in arm_runs
+            if run.market_traces
+        ]
         arm_summaries[arm.arm_id] = ArmSummary(
             world_count=len(arm_runs),
             worlds_with_redevelopment=sum(count > 0 for count in counts),
@@ -293,6 +302,21 @@ def _campaign_result(
                 )
                 / len(final_infrastructure)
                 if final_infrastructure
+                else None
+            ),
+            market_convergence_fraction=(
+                sum(trace.converged for trace in market_traces) / len(market_traces)
+                if market_traces
+                else None
+            ),
+            mean_market_iterations=(
+                sum(trace.iterations for trace in market_traces) / len(market_traces)
+                if market_traces
+                else None
+            ),
+            mean_peak_market_residual=(
+                sum(peak_market_residuals) / len(peak_market_residuals)
+                if peak_market_residuals
                 else None
             ),
         )

@@ -70,4 +70,8 @@ def test_scaled_integrated_one_world_executes_all_matched_arms() -> None:
         summaries["p3"].mean_cumulative_public_spend > summaries["p0"].mean_cumulative_public_spend
     )
     assert summaries["p3"].mean_peak_transport_utilization is not None
+    assert summaries["p3"].market_convergence_fraction == 1.0
+    assert summaries["p3"].mean_market_iterations is not None
+    assert summaries["p3"].mean_peak_market_residual == 0.0
     assert by_arm["p3"].infrastructure_traces
+    assert by_arm["p3"].market_traces

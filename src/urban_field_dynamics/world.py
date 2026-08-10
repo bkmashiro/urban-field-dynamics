@@ -35,7 +35,7 @@ from urban_field_dynamics.infrastructure import (
     allocate_budget,
 )
 from urban_field_dynamics.labor import LaborMatchingResult, LaborMatchingSpec, match_labor
-from urban_field_dynamics.market import MarketClearingSpec, clear_market
+from urban_field_dynamics.market import MarketClearingResult, MarketClearingSpec, clear_market
 from urban_field_dynamics.redevelopment import evaluate_redevelopment
 from urban_field_dynamics.schedule import AnnualPhase, ScheduleConfig, Season, iter_schedule
 from urban_field_dynamics.transport import (
@@ -289,6 +289,7 @@ class WorldResult(BaseModel):
     labor_traces: dict[int, LaborMatchingResult] = Field(default_factory=dict)
     final_firm_wages: dict[str, float] = Field(default_factory=dict)
     infrastructure_traces: dict[int, InfrastructureAnnualTrace] = Field(default_factory=dict)
+    market_traces: dict[int, MarketClearingResult] = Field(default_factory=dict)
     transport_traces: dict[int, dict[str, TransportAssignmentResult]] = Field(default_factory=dict)
     environment_traces: dict[int, dict[str, dict[str, ExposureResult]]] = Field(
         default_factory=dict
@@ -384,6 +385,7 @@ def run_world(config: WorldRunConfig) -> WorldResult:
     firm_births: dict[int, tuple[str, ...]] = {}
     firm_deaths: dict[int, tuple[str, ...]] = {}
     labor_traces: dict[int, LaborMatchingResult] = {}
+    market_traces: dict[int, MarketClearingResult] = {}
     transport_edges = {edge.edge_id: edge for edge in config.transport_edges}
     transport_traces: dict[int, dict[str, TransportAssignmentResult]] = {}
     environmental_units = {unit.unit_id: unit for unit in config.environmental_units}
@@ -753,10 +755,9 @@ def run_world(config: WorldRunConfig) -> WorldResult:
             current_firms = tuple(adjusted_firms)
 
         elif step.phase is AnnualPhase.MARKET_CLEARING and config.market is not None:
-            locations = {
-                location.unit_id: location
-                for location in clear_market(tuple(locations.values()), config.market)
-            }
+            market = clear_market(tuple(locations.values()), config.market)
+            market_traces[step.year] = market
+            locations = {location.unit_id: location for location in market.locations}
 
         elif step.phase is AnnualPhase.DEVELOPMENT:
             tape = generate_event_tape(
@@ -897,6 +898,7 @@ def run_world(config: WorldRunConfig) -> WorldResult:
         labor_traces=labor_traces,
         final_firm_wages={cohort.cohort_id: cohort.offered_wage for cohort in current_firms},
         infrastructure_traces=infrastructure_traces,
+        market_traces=market_traces,
         transport_traces=transport_traces,
         environment_traces=environment_traces,
         final_environment_quality={

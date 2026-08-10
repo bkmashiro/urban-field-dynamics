@@ -132,9 +132,9 @@ For bounded campaign work, execute the real exporter and verifier, not only unit
 
 ### Track D — Market clearing hardening
 
-- [ ] Add bounded iterative rent clearing with tolerance/max-iteration diagnostics and deterministic fallback semantics.
-- [ ] Preserve the current surrogate as a documented reference mode and exact regression path.
-- [ ] Prove convergence/non-convergence behavior and integrate affordability/rent-burden outcomes.
+- [x] Replace one-step rent update with a bounded relaxed annual target solve.
+- [x] Preserve the prior occupancy-pressure semantics rather than claim a same-year equilibrium.
+- [x] Prove convergence/non-convergence and export annual/aggregate diagnostics.
 
 ### Track E — Robustness and decision evidence
 

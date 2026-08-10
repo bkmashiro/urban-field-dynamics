@@ -1,5 +1,3 @@
-import pytest
-
 from urban_field_dynamics.agents import FirmCohortSpec, HouseholdCohortSpec, LocationState
 from urban_field_dynamics.contracts import EvidenceStatus, LandUse, PinKind, SpatialUnitSpec
 from urban_field_dynamics.market import MarketClearingSpec
@@ -143,4 +141,6 @@ def test_repeated_annual_relocation_does_not_duplicate_weighted_cohorts() -> Non
 
     assert sum(result.final_households.values()) == 60.0
     assert sum(result.final_jobs.values()) == 60.0
-    assert result.final_rents["unit-bb"] == pytest.approx(10.404)
+    assert result.final_rents["unit-bb"] > 10.0
+    assert set(result.market_traces) == {2026, 2027}
+    assert all(trace.converged for trace in result.market_traces.values())

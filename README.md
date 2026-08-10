@@ -69,3 +69,4 @@ Haidian forecast.
 - [Implemented matched policy-intensity sweeps](docs/model/policy-intensity-sweeps.md)
 - [Implemented weighted labor matching](docs/model/odd-labor-matching.md)
 - [Implemented public budget and capacity ledger](docs/model/infrastructure-budget-ledger.md)
+- [Implemented bounded annual market response](docs/model/odd-market-clearing.md)

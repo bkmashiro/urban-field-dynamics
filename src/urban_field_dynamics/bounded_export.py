@@ -91,6 +91,9 @@ def _representative_worlds(
                 year: trace.model_dump(mode="json")
                 for year, trace in world.infrastructure_traces.items()
             },
+            "market_traces": {
+                year: trace.model_dump(mode="json") for year, trace in world.market_traces.items()
+            },
             "firm_births": world.firm_births,
             "firm_deaths": world.firm_deaths,
             "final_rents": world.final_rents,
