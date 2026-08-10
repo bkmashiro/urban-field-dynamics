@@ -119,7 +119,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise ValueError("worlds must be positive")
         if args.workers <= 0:
             raise ValueError("workers must be positive")
-        sweep_id = f"scaled-p3-intensity-canary-{args.worlds}"
+        stage = "canary" if args.worlds < 32 else "qualification"
+        sweep_id = f"scaled-p3-intensity-{stage}-{args.worlds}"
         built = build_policy_intensity_sweep(
             scaled_integrated_campaign(world_count=args.worlds, end_year=args.end_year),
             PolicySweepSpec(

@@ -19,6 +19,8 @@ from urban_field_dynamics.campaign import (
 )
 from urban_field_dynamics.provenance import ArtifactProvenance, artifact_provenance
 
+_ARTIFACT_NAMES = ("stress-config.json", "provenance.json", "stress-evidence.json")
+
 NonNegativeFloat = Annotated[float, Field(ge=0.0)]
 PositiveFloat = Annotated[float, Field(gt=0.0)]
 BoundedDelta = Annotated[float, Field(ge=-1.0, le=1.0)]
@@ -462,11 +464,13 @@ def export_stress_matrix(
 ) -> StressMatrixEvidence:
     """Run and write a bounded deterministic stress matrix."""
 
+    target = Path(output_dir)
+    if target.exists() and any(target.iterdir()):
+        raise FileExistsError(f"export destination is not empty: {target}")
+    target.mkdir(parents=True, exist_ok=True)
     results = run_stress_matrix(spec.matrix, max_workers=max_workers)
     provenance = artifact_provenance(source_revision)
     payloads = _payloads(spec, results, provenance)
-    target = Path(output_dir)
-    target.mkdir(parents=True, exist_ok=True)
     for name, content in payloads.items():
         (target / name).write_bytes(content)
     (target / "manifest.json").write_bytes(_manifest(payloads))
@@ -481,6 +485,26 @@ def verify_stress_export(
     """Replay a frozen stress config and byte-compare every derived file."""
 
     target = Path(output_dir)
+    expected_paths = {"manifest.json", *_ARTIFACT_NAMES}
+    actual_paths = {path.name for path in target.iterdir() if path.is_file()}
+    if actual_paths != expected_paths:
+        raise ValueError("stress export directory contains undeclared files")
+    manifest_bytes = (target / "manifest.json").read_bytes()
+    try:
+        manifest = json.loads(manifest_bytes)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("stress manifest is invalid") from exc
+    declared = manifest.get("files", {})
+    if set(declared) != set(_ARTIFACT_NAMES):
+        raise ValueError("stress manifest artifact list differs from contract")
+    for name in _ARTIFACT_NAMES:
+        content = (target / name).read_bytes()
+        metadata = declared[name]
+        if (
+            metadata.get("bytes") != len(content)
+            or metadata.get("sha256") != sha256(content).hexdigest()
+        ):
+            raise ValueError(f"stress manifest hash mismatch: {name}")
     config_bytes = (target / "stress-config.json").read_bytes()
     provenance_bytes = (target / "provenance.json").read_bytes()
     spec = StressEvidenceSpec.model_validate_json(config_bytes)
@@ -492,6 +516,6 @@ def verify_stress_export(
     for name, content in rebuilt.items():
         if (target / name).read_bytes() != content:
             raise ValueError(f"stress derived artifact differs on replay: {name}")
-    if (target / "manifest.json").read_bytes() != _manifest(rebuilt):
+    if manifest_bytes != _manifest(rebuilt):
         raise ValueError("stress manifest differs on replay")
     return summarize_stress_matrix(spec, results)

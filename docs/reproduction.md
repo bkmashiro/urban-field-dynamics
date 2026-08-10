@@ -14,6 +14,8 @@ uv run pytest -q
 
 Replay verification itself does not call Git. It parses the frozen config and provenance, reruns the campaign, reconstructs every derived artifact byte for byte, and checks the manifest hashes.
 
+The `source_revision` field is a caller assertion protected by the artifact hash. Offline replay proves internal byte consistency; it cannot prove that the current checkout equals that revision. Verify the checkout and commit signature separately when Git history is available.
+
 ## Bounded campaign
 
 ```bash

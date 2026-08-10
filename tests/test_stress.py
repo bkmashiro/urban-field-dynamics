@@ -1,3 +1,5 @@
+import pytest
+
 from urban_field_dynamics.campaign import run_campaign
 from urban_field_dynamics.scaled_integrated import scaled_integrated_campaign
 from urban_field_dynamics.stress import (
@@ -9,6 +11,28 @@ from urban_field_dynamics.stress import (
     export_stress_matrix,
     verify_stress_export,
 )
+
+
+def _stress_evidence_fixture() -> StressEvidenceSpec:
+    base = scaled_integrated_campaign(world_count=1, end_year=2028)
+    return StressEvidenceSpec(
+        matrix=StressMatrixSpec(
+            matrix_id="stress-test",
+            base_campaign=base,
+            scenarios=(
+                StressScenario(scenario_id="baseline"),
+                StressScenario(
+                    scenario_id="transport-disruption",
+                    transport_capacity_multiplier=0.8,
+                ),
+            ),
+        ),
+        metrics=(
+            StressMetric.FINAL_ACCESSIBILITY,
+            StressMetric.FINAL_EMPLOYMENT,
+            StressMetric.CUMULATIVE_PUBLIC_SPEND,
+        ),
+    )
 
 
 def test_stress_transform_changes_only_declared_exogenous_inputs() -> None:
@@ -70,25 +94,7 @@ def test_stress_transform_changes_only_declared_exogenous_inputs() -> None:
 
 
 def test_stress_matrix_export_is_bounded_and_replay_verifiable(tmp_path) -> None:
-    base = scaled_integrated_campaign(world_count=1, end_year=2028)
-    evidence_spec = StressEvidenceSpec(
-        matrix=StressMatrixSpec(
-            matrix_id="stress-test",
-            base_campaign=base,
-            scenarios=(
-                StressScenario(scenario_id="baseline"),
-                StressScenario(
-                    scenario_id="transport-disruption",
-                    transport_capacity_multiplier=0.8,
-                ),
-            ),
-        ),
-        metrics=(
-            StressMetric.FINAL_ACCESSIBILITY,
-            StressMetric.FINAL_EMPLOYMENT,
-            StressMetric.CUMULATIVE_PUBLIC_SPEND,
-        ),
-    )
+    evidence_spec = _stress_evidence_fixture()
     target = tmp_path / "stress"
 
     exported = export_stress_matrix(
@@ -107,3 +113,30 @@ def test_stress_matrix_export_is_bounded_and_replay_verifiable(tmp_path) -> None
         "stress-config.json",
         "stress-evidence.json",
     }
+
+
+def test_stress_export_refuses_nonempty_destination(tmp_path) -> None:
+    target = tmp_path / "stress"
+    target.mkdir()
+    (target / "stale.json").write_text("{}")
+
+    with pytest.raises(FileExistsError, match="not empty"):
+        export_stress_matrix(_stress_evidence_fixture(), target)
+
+
+def test_stress_verifier_refuses_undeclared_files(tmp_path) -> None:
+    target = tmp_path / "stress"
+    export_stress_matrix(_stress_evidence_fixture(), target)
+    (target / "undeclared.json").write_text("{}")
+
+    with pytest.raises(ValueError, match="undeclared files"):
+        verify_stress_export(target)
+
+
+def test_stress_verifier_fails_fast_after_tampering(tmp_path) -> None:
+    target = tmp_path / "stress"
+    export_stress_matrix(_stress_evidence_fixture(), target)
+    (target / "stress-evidence.json").write_text("{}\n")
+
+    with pytest.raises(ValueError, match="manifest hash mismatch"):
+        verify_stress_export(target)
