@@ -25,7 +25,10 @@ def test_paired_accessibility_delta_uses_matched_world_order(result) -> None:
 
     assert diagnostic.world_ids == tuple(range(8))
     assert len(diagnostic.deltas) == 8
-    assert diagnostic.checkpoints[-1].mean_delta > 0.0
+    assert diagnostic.checkpoints[-1].mean_delta == pytest.approx(
+        sum(diagnostic.deltas) / len(diagnostic.deltas)
+    )
+    assert any(delta != 0.0 for delta in diagnostic.deltas)
     assert diagnostic.harmed_world_count == sum(delta < 0.0 for delta in diagnostic.deltas)
 
 

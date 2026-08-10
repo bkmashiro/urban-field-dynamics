@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from urban_field_dynamics.agents import FirmCohortSpec, HouseholdCohortSpec, LocationState
 from urban_field_dynamics.contracts import SpatialUnitSpec
+from urban_field_dynamics.dynamics import FirmDynamicsSpec, HouseholdDynamicsSpec
 from urban_field_dynamics.environment import (
     EnvironmentalUnitSpec,
     ExposureWeights,
@@ -62,6 +63,8 @@ class CampaignSpec(BaseModel):
     location_members: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     households: tuple[HouseholdCohortSpec, ...] = ()
     firms: tuple[FirmCohortSpec, ...] = ()
+    household_dynamics: HouseholdDynamicsSpec | None = None
+    firm_dynamics: FirmDynamicsSpec | None = None
     market: MarketClearingSpec | None = None
     agent_taste_shock_scale: NonNegativeFloat = 0.0
     transport_edges: tuple[TransportEdgeSpec, ...] = ()

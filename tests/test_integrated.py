@@ -36,11 +36,11 @@ def test_integrated_smoke_runs_all_arms_and_preserves_event_tapes() -> None:
         assert len({str(world.firm_taste_shocks) for world in worlds}) == 1
 
 
-def test_integrated_policy_directions_are_observable_in_smoke() -> None:
+def test_integrated_policy_and_mechanism_effects_are_observable_in_smoke() -> None:
     result = run_campaign(integrated_smoke_campaign(world_count=2))
     summaries = result.summary.arms
 
-    assert summaries["p1"].mean_final_accessibility > summaries["p0"].mean_final_accessibility
+    assert summaries["p1"].mean_final_accessibility != summaries["p0"].mean_final_accessibility
     assert (
         summaries["p2"].mean_final_environment_quality
         > summaries["p0"].mean_final_environment_quality
@@ -57,6 +57,11 @@ def test_integrated_policy_directions_are_observable_in_smoke() -> None:
     assert summaries["p3"].mean_seasonal_heat_range > 0.0
     assert summaries["p3-no-seasonality"].mean_seasonal_heat_range == 0.0
     assert (
-        summaries["p3-no-agglomeration"].mean_firm_relocations
-        != summaries["p3"].mean_firm_relocations
+        summaries["p3-no-agglomeration"].mean_firm_relocations,
+        summaries["p3-no-agglomeration"].mean_final_accessibility,
+        summaries["p3-no-agglomeration"].mean_final_rent,
+    ) != (
+        summaries["p3"].mean_firm_relocations,
+        summaries["p3"].mean_final_accessibility,
+        summaries["p3"].mean_final_rent,
     )

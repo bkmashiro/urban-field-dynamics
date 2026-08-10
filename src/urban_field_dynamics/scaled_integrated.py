@@ -7,6 +7,11 @@ from collections import defaultdict
 from urban_field_dynamics.agents import FirmCohortSpec, HouseholdCohortSpec, LocationState
 from urban_field_dynamics.campaign import CampaignArm, CampaignSpec
 from urban_field_dynamics.contracts import EvidenceStatus, LandUse
+from urban_field_dynamics.dynamics import (
+    FirmBirthPrototype,
+    FirmDynamicsSpec,
+    HouseholdDynamicsSpec,
+)
 from urban_field_dynamics.environment import (
     EnvironmentalUnitSpec,
     ExposureWeights,
@@ -380,9 +385,43 @@ def _arms(
             mechanisms=MechanismSwitches(service_provision_enabled=False),
         ),
         CampaignArm(
+            arm_id="p3-no-cohort-dynamics",
+            policy=p3,
+            mechanisms=MechanismSwitches(cohort_dynamics_enabled=False),
+        ),
+        CampaignArm(
             arm_id="p3-no-public-coordination",
             policy=p3,
             mechanisms=MechanismSwitches(public_coordination_enabled=False),
+        ),
+    )
+
+
+def _firm_dynamics(anchors: dict[str, str]) -> FirmDynamicsSpec:
+    shared = {
+        "annual_birth_probability": 0.05,
+        "employees": 8.0,
+        "floor_demand_per_employee": 1.0,
+        "accessibility_weight": 0.8,
+        "agglomeration_weight": 0.5,
+        "rent_weight": 0.3,
+        "evidence_status": SYNTHETIC,
+    }
+    return FirmDynamicsSpec(
+        annual_death_probability=0.01,
+        mean_employee_growth_rate=0.01,
+        employee_growth_volatility=0.02,
+        birth_prototypes=(
+            FirmBirthPrototype(
+                prototype_id="startup-north",
+                initial_unit_id=anchors["focus-north"],
+                **shared,
+            ),
+            FirmBirthPrototype(
+                prototype_id="startup-south",
+                initial_unit_id=anchors["focus-south"],
+                **shared,
+            ),
         ),
     )
 
@@ -420,6 +459,11 @@ def scaled_integrated_campaign(
         location_members={zone.zone_id: zone.member_unit_ids for zone in zoning.zones},
         households=households,
         firms=firms,
+        household_dynamics=HouseholdDynamicsSpec(
+            mean_growth_rate=0.002,
+            growth_volatility=0.002,
+        ),
+        firm_dynamics=_firm_dynamics(anchors),
         market=MarketClearingSpec(
             target_occupancy=0.65,
             adjustment_rate=0.15,

@@ -23,6 +23,8 @@ class CampaignMetric(StrEnum):
     FINAL_RENT = "final_rent"
     SEASONAL_HEAT_RANGE = "seasonal_heat_range"
     FINAL_SERVICE_ACCESS = "final_service_access"
+    FINAL_POPULATION = "final_population"
+    FINAL_EMPLOYMENT = "final_employment"
 
 
 class ConvergencePoint(BaseModel):
@@ -106,6 +108,10 @@ def _metric(world: WorldResult, metric: CampaignMetric) -> float:
         return _seasonal_heat_range(world)
     if metric is CampaignMetric.FINAL_SERVICE_ACCESS:
         return _service_access(world)
+    if metric is CampaignMetric.FINAL_POPULATION:
+        return sum(world.final_household_populations.values())
+    if metric is CampaignMetric.FINAL_EMPLOYMENT:
+        return sum(world.final_firm_employees.values())
     raise AssertionError(f"unsupported campaign metric: {metric}")
 
 
@@ -249,6 +255,21 @@ def integrated_qualification_diagnostics(
             baseline_arm="p3-no-service-provision",
             comparator_arm="p3",
             metric=CampaignMetric.FINAL_SERVICE_ACCESS,
+            checkpoints=checkpoints,
+        )
+    if "p3-no-cohort-dynamics" in arm_ids:
+        comparisons["cohort-dynamics-population-effect"] = paired_convergence(
+            result,
+            baseline_arm="p3-no-cohort-dynamics",
+            comparator_arm="p3",
+            metric=CampaignMetric.FINAL_POPULATION,
+            checkpoints=checkpoints,
+        )
+        comparisons["cohort-dynamics-employment-effect"] = paired_convergence(
+            result,
+            baseline_arm="p3-no-cohort-dynamics",
+            comparator_arm="p3",
+            metric=CampaignMetric.FINAL_EMPLOYMENT,
             checkpoints=checkpoints,
         )
     world_count = len(next(iter(comparisons.values())).world_ids)

@@ -15,6 +15,12 @@ from urban_field_dynamics.agents import (
     allocate_households,
 )
 from urban_field_dynamics.contracts import LandUse, SpatialUnitSpec
+from urban_field_dynamics.dynamics import (
+    FirmDynamicsSpec,
+    HouseholdDynamicsSpec,
+    evolve_firms,
+    evolve_households,
+)
 from urban_field_dynamics.environment import (
     EnvironmentalUnitSpec,
     ExposureResult,
@@ -52,6 +58,7 @@ class MechanismSwitches(BaseModel):
     environmental_exposure_enabled: bool = True
     public_coordination_enabled: bool = True
     service_provision_enabled: bool = True
+    cohort_dynamics_enabled: bool = True
 
 
 class TriggerMetric(StrEnum):
@@ -114,6 +121,8 @@ class WorldRunConfig(BaseModel):
     location_members: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     households: tuple[HouseholdCohortSpec, ...] = ()
     firms: tuple[FirmCohortSpec, ...] = ()
+    household_dynamics: HouseholdDynamicsSpec | None = None
+    firm_dynamics: FirmDynamicsSpec | None = None
     market: MarketClearingSpec | None = None
     agent_taste_shock_scale: NonNegativeFloat = 0.0
     transport_edges: tuple[TransportEdgeSpec, ...] = ()
@@ -173,6 +182,13 @@ class WorldRunConfig(BaseModel):
                 for cohort in (*self.households, *self.firms)
             ):
                 raise ValueError("cohort initial_unit_id must exist in locations")
+            if self.firm_dynamics is not None and any(
+                prototype.initial_unit_id not in known_locations
+                for prototype in self.firm_dynamics.birth_prototypes
+            ):
+                raise ValueError("firm birth prototype initial_unit_id must exist in locations")
+        elif self.household_dynamics is not None or self.firm_dynamics is not None:
+            raise ValueError("agent dynamics require configured locations and cohorts")
 
         transport_values = (
             bool(self.transport_edges),
@@ -248,6 +264,14 @@ class WorldResult(BaseModel):
     final_rents: dict[str, float] = Field(default_factory=dict)
     household_taste_shocks: dict[int, dict[str, dict[str, float]]] = Field(default_factory=dict)
     firm_taste_shocks: dict[int, dict[str, dict[str, float]]] = Field(default_factory=dict)
+    final_household_populations: dict[str, float] = Field(default_factory=dict)
+    final_firm_employees: dict[str, float] = Field(default_factory=dict)
+    household_growth_shocks: dict[int, dict[str, float]] = Field(default_factory=dict)
+    firm_death_shocks: dict[int, dict[str, float]] = Field(default_factory=dict)
+    firm_expansion_shocks: dict[int, dict[str, float]] = Field(default_factory=dict)
+    firm_birth_shocks: dict[int, dict[str, float]] = Field(default_factory=dict)
+    firm_births: dict[int, tuple[str, ...]] = Field(default_factory=dict)
+    firm_deaths: dict[int, tuple[str, ...]] = Field(default_factory=dict)
     transport_traces: dict[int, dict[str, TransportAssignmentResult]] = Field(default_factory=dict)
     environment_traces: dict[int, dict[str, dict[str, ExposureResult]]] = Field(
         default_factory=dict
@@ -328,10 +352,20 @@ def run_world(config: WorldRunConfig) -> WorldResult:
     redevelopment_years: dict[str, int | None] = {unit.unit_id: None for unit in config.units}
     development_shocks: dict[int, dict[str, float]] = {}
     locations = {location.unit_id: location for location in config.locations}
-    household_locations = {cohort.cohort_id: cohort.initial_unit_id for cohort in config.households}
-    firm_locations = {cohort.cohort_id: cohort.initial_unit_id for cohort in config.firms}
+    current_households = config.households
+    current_firms = config.firms
+    household_locations = {
+        cohort.cohort_id: cohort.initial_unit_id for cohort in current_households
+    }
+    firm_locations = {cohort.cohort_id: cohort.initial_unit_id for cohort in current_firms}
     household_taste_shocks: dict[int, dict[str, dict[str, float]]] = {}
     firm_taste_shocks: dict[int, dict[str, dict[str, float]]] = {}
+    household_growth_shocks: dict[int, dict[str, float]] = {}
+    firm_death_shocks: dict[int, dict[str, float]] = {}
+    firm_expansion_shocks: dict[int, dict[str, float]] = {}
+    firm_birth_shocks: dict[int, dict[str, float]] = {}
+    firm_births: dict[int, tuple[str, ...]] = {}
+    firm_deaths: dict[int, tuple[str, ...]] = {}
     transport_edges = {edge.edge_id: edge for edge in config.transport_edges}
     transport_traces: dict[int, dict[str, TransportAssignmentResult]] = {}
     environmental_units = {unit.unit_id: unit for unit in config.environmental_units}
@@ -524,16 +558,26 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                         )
                 environment_traces.setdefault(step.year, {})[step.season.value] = seasonal_results
 
-        elif step.phase is AnnualPhase.HOUSEHOLD_RELOCATION and config.households:
-            for cohort in config.households:
+        elif step.phase is AnnualPhase.HOUSEHOLD_RELOCATION and current_households:
+            for cohort in current_households:
                 unit_id = household_locations[cohort.cohort_id]
                 location = locations[unit_id]
                 remaining = location.households - cohort.housing_demand
                 if remaining < -1e-9:
                     raise ValueError("initial household occupancy is below cohort demand")
                 locations[unit_id] = location.model_copy(update={"households": max(0.0, remaining)})
+            if config.household_dynamics is not None and config.mechanisms.cohort_dynamics_enabled:
+                dynamics = evolve_households(
+                    current_households,
+                    config.household_dynamics,
+                    root_seed=config.root_seed,
+                    world_id=config.world_id,
+                    year=step.year,
+                )
+                current_households = dynamics.cohorts
+                household_growth_shocks[step.year] = dynamics.growth_shocks
             allocation = allocate_households(
-                config.households,
+                current_households,
                 tuple(locations.values()),
                 root_seed=config.root_seed,
                 world_id=config.world_id,
@@ -544,20 +588,40 @@ def run_world(config: WorldRunConfig) -> WorldResult:
             locations = {location.unit_id: location for location in allocation.locations}
             household_taste_shocks[step.year] = allocation.taste_shocks
 
-        elif step.phase is AnnualPhase.FIRM_DYNAMICS and config.firms:
-            for cohort in config.firms:
+        elif step.phase is AnnualPhase.FIRM_DYNAMICS and (
+            current_firms or config.firm_dynamics is not None
+        ):
+            for cohort in current_firms:
                 unit_id = firm_locations[cohort.cohort_id]
                 location = locations[unit_id]
                 remaining = location.jobs - cohort.employees
                 if remaining < -1e-9:
                     raise ValueError("initial employment is below cohort employment")
                 locations[unit_id] = location.model_copy(update={"jobs": max(0.0, remaining)})
-            firm_cohorts = config.firms
+            if config.firm_dynamics is not None and config.mechanisms.cohort_dynamics_enabled:
+                dynamics = evolve_firms(
+                    current_firms,
+                    config.firm_dynamics,
+                    root_seed=config.root_seed,
+                    world_id=config.world_id,
+                    year=step.year,
+                )
+                current_firms = dynamics.cohorts
+                firm_death_shocks[step.year] = dynamics.death_shocks
+                firm_expansion_shocks[step.year] = dynamics.expansion_shocks
+                firm_birth_shocks[step.year] = dynamics.birth_shocks
+                firm_births[step.year] = dynamics.births
+                firm_deaths[step.year] = dynamics.deaths
+            firm_cohorts = current_firms
             if not config.mechanisms.agglomeration_enabled:
                 firm_cohorts = tuple(
                     cohort.model_copy(update={"agglomeration_weight": 0.0})
-                    for cohort in config.firms
+                    for cohort in current_firms
                 )
+            if not firm_cohorts:
+                firm_locations = {}
+                firm_taste_shocks[step.year] = {}
+                continue
             allocation = allocate_firms(
                 firm_cohorts,
                 tuple(locations.values()),
@@ -635,6 +699,16 @@ def run_world(config: WorldRunConfig) -> WorldResult:
         final_rents={unit_id: location.rent for unit_id, location in locations.items()},
         household_taste_shocks=household_taste_shocks,
         firm_taste_shocks=firm_taste_shocks,
+        final_household_populations={
+            cohort.cohort_id: cohort.population for cohort in current_households
+        },
+        final_firm_employees={cohort.cohort_id: cohort.employees for cohort in current_firms},
+        household_growth_shocks=household_growth_shocks,
+        firm_death_shocks=firm_death_shocks,
+        firm_expansion_shocks=firm_expansion_shocks,
+        firm_birth_shocks=firm_birth_shocks,
+        firm_births=firm_births,
+        firm_deaths=firm_deaths,
         transport_traces=transport_traces,
         environment_traces=environment_traces,
         final_environment_quality={

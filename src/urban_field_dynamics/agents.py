@@ -204,21 +204,25 @@ def _taste_shocks(
 ) -> dict[str, dict[str, float]]:
     if scale < 0.0:
         raise ValueError("taste_shock_scale must be non-negative")
-    tape = generate_event_tape(
-        EventTapeSpec(
-            root_seed=root_seed,
-            world_id=world_id,
-            year=year,
-            mechanism=mechanism,
-        ),
-        shape=(len(cohort_ids), len(location_ids)),
-    )
+    tapes = {
+        cohort_id: generate_event_tape(
+            EventTapeSpec(
+                root_seed=root_seed,
+                world_id=world_id,
+                year=year,
+                mechanism=mechanism,
+                entity_id=cohort_id,
+            ),
+            shape=(len(location_ids),),
+        )
+        for cohort_id in cohort_ids
+    }
     return {
         cohort_id: {
-            location_id: float((tape[row, column] - 0.5) * 2.0 * scale)
+            location_id: float((tapes[cohort_id][column] - 0.5) * 2.0 * scale)
             for column, location_id in enumerate(location_ids)
         }
-        for row, cohort_id in enumerate(cohort_ids)
+        for cohort_id in cohort_ids
     }
 
 

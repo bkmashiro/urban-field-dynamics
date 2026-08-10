@@ -15,7 +15,7 @@ def test_scaled_integrated_contract_has_1200_cells_and_48_explicit_zones() -> No
     }
     assert len(spec.households) == 6
     assert len(spec.firms) == 6
-    assert len(spec.arms) == 11
+    assert len(spec.arms) == 12
     p3 = next(arm for arm in spec.arms if arm.arm_id == "p3")
     assert len(p3.policy.service_quality_delta_by_location) == 48
     assert len(p3.policy.service_capacity_multiplier_by_location) == 48
@@ -31,13 +31,26 @@ def test_scaled_integrated_contract_has_1200_cells_and_48_explicit_zones() -> No
 def test_scaled_integrated_one_world_executes_all_matched_arms() -> None:
     result = run_campaign(scaled_integrated_campaign(world_count=1))
 
-    assert result.summary.run_count == 11
+    assert result.summary.run_count == 12
     worlds = [run.world for run in result.runs]
     assert all(len(world.final_uses) == 1_200 for world in worlds)
     assert all(len(world.final_rents) == 48 for world in worlds)
     assert len({str(world.development_shocks) for world in worlds}) == 1
     assert len({str(world.household_taste_shocks) for world in worlds}) == 1
-    assert len({str(world.firm_taste_shocks) for world in worlds}) == 1
+    by_arm = {run.arm_id: run.world for run in result.runs}
+    dynamic_worlds = [
+        world for arm_id, world in by_arm.items() if arm_id != "p3-no-cohort-dynamics"
+    ]
+    assert len({str(world.firm_taste_shocks) for world in dynamic_worlds}) == 1
+    p3 = by_arm["p3"]
+    no_dynamics = by_arm["p3-no-cohort-dynamics"]
+    shared_comparisons = 0
+    for year, cohort_shocks in no_dynamics.firm_taste_shocks.items():
+        shared_ids = set(cohort_shocks) & set(p3.firm_taste_shocks[year])
+        for cohort_id in shared_ids:
+            assert p3.firm_taste_shocks[year][cohort_id] == cohort_shocks[cohort_id]
+            shared_comparisons += 1
+    assert shared_comparisons > 0
     summaries = result.summary.arms
     assert summaries["p1"].mean_final_accessibility > summaries["p0"].mean_final_accessibility
     assert (
@@ -46,3 +59,5 @@ def test_scaled_integrated_one_world_executes_all_matched_arms() -> None:
     )
     diagnostics = integrated_qualification_diagnostics(result, checkpoints=(1,))
     assert diagnostics.comparisons["service-provision-effect"].checkpoints[-1].mean_delta > 0.0
+    assert diagnostics.comparisons["cohort-dynamics-population-effect"].deltas[0] > 0.0
+    assert "cohort-dynamics-employment-effect" in diagnostics.comparisons

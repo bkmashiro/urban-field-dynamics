@@ -39,6 +39,31 @@ def test_event_tape_changes_between_mechanisms() -> None:
     assert not np.array_equal(weather, relocation)
 
 
+def test_entity_scoped_tape_is_independent_of_other_entity_membership() -> None:
+    first = generate_event_tape(
+        EventTapeSpec(
+            root_seed=20260809,
+            world_id=7,
+            year=2030,
+            mechanism="firm-expansion",
+            entity_id="firm-aa",
+        ),
+        shape=(16,),
+    )
+    second = generate_event_tape(
+        EventTapeSpec(
+            root_seed=20260809,
+            world_id=7,
+            year=2030,
+            mechanism="firm-expansion",
+            entity_id="firm-bb",
+        ),
+        shape=(16,),
+    )
+
+    assert not np.array_equal(first, second)
+
+
 def test_event_tape_spec_rejects_unknown_fields() -> None:
     with pytest.raises(ValueError):
         EventTapeSpec(

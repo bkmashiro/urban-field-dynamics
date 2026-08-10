@@ -25,10 +25,14 @@ class EventTapeSpec(BaseModel):
     world_id: NonNegativeInt
     year: NonNegativeInt
     mechanism: Annotated[str, Field(min_length=1, pattern=r"^[a-z][a-z0-9_-]*$")]
+    entity_id: Annotated[str, Field(min_length=1, max_length=128)] | None = None
 
 
 def _philox_seed(spec: EventTapeSpec) -> int:
-    identity = (f"{spec.root_seed}\x1f{spec.world_id}\x1f{spec.year}\x1f{spec.mechanism}").encode()
+    identity_text = f"{spec.root_seed}\x1f{spec.world_id}\x1f{spec.year}\x1f{spec.mechanism}"
+    if spec.entity_id is not None:
+        identity_text += f"\x1f{spec.entity_id}"
+    identity = identity_text.encode()
     digest = blake2b(identity, digest_size=16, person=b"urban-field-v1").digest()
     return int.from_bytes(digest, byteorder="little", signed=False)
 
