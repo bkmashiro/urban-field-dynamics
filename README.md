@@ -84,6 +84,7 @@ Haidian forecast.
 - [Methodological foundation](docs/research/methodological-foundation.md)
 - [Data requirements and empirical validation gates](docs/research/data-requirements-and-validation.md)
 - [Bounded evidence reproduction](docs/reproduction.md)
+- [Local pre-PR review packet](docs/review/pre-pr-review-packet.md)
 - [ADR 0001: engine/submission boundary](docs/adr/0001-engine-submission-boundary.md)
 - [Implemented redevelopment ODD slice](docs/model/odd-redevelopment-slice.md)
 - [Implemented weighted cohort and market ODD slice](docs/model/odd-agent-market-slice.md)

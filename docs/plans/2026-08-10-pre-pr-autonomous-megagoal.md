@@ -158,8 +158,8 @@ For bounded campaign work, execute the real exporter and verifier, not only unit
 - [x] Build wheel/sdist and install-smoke the wheel in a temporary environment.
 - [x] Add provenance fields needed to pin source commit/config without reading Git during replay.
 - [x] Update ODD, limitations, data requirements, qualification, and reproduction docs.
-- [ ] Produce a local pre-PR review packet/checklist identifying exact companion commits/artifacts and permission-gated Haidian changes.
-- [ ] Run final full gates, verify all local commit signatures, and stop before push/PR.
+- [x] Produce a local pre-PR review packet/checklist identifying exact companion commits/artifacts and permission-gated Haidian changes.
+- [x] Run final full gates, verify all local commit signatures, and stop before push/PR.
 
 ## Per-slice protocol
 
@@ -193,6 +193,8 @@ If blocked, record the blocker here and report exact modified files, tests, Git 
 - 2026-08-10: Track B complete. Added deterministic weighted labor flow, complete congested transport skims without extra demand, wage and vacancy-retention feedback, firm/location job-state consistency, equity observers, a P3 matched ablation, bounded evidence, and long-horizon execution. Next: Track C infrastructure and budget ledgers.
 - 2026-08-10: Tracks C–E complete. Added fail-closed public budget/capacity ledgers, bounded annual market-response convergence, group tail harm, cost leverage, and a six-scenario matched stress matrix. Frozen commit `04effa1` completed an 8-world × 6-scenario × 4-policy 2050 export/full-replay canary in 401.60 s; artifact size 784 KiB. Next: provenance checkpoint, profiling, and current-HEAD qualification.
 - 2026-08-10: Track F complete. Exact transport optimisation at signed commit `64a8e7d` preserved the 130,847,617-byte campaign SHA while reducing the one-world 2050 workload from 39.78 s to 2.70 s. Frozen 32- and 64-world bounded campaigns both exported and fully replayed; the 64-world matrix covered 832 runs in 160.00 s total. No selected direction flipped from 32 to 64, so 128 worlds were rejected as low-value synthetic oversampling.
+- 2026-08-10: Track G evidence complete. Hardened stress exports against stale or undeclared files, fixed 32-world sweep labelling, reduced the core wheel to NumPy and Pydantic, built and fresh-installed wheel/sdist, and replayed the final 8-world stress canary in 26.49 s total. The local review packet records exact commits, manifests, limitations, and external-action gates.
+- 2026-08-10: Pre-PR closeout complete. Final gates passed with 137 tests, Ruff, formatting, lock, wheel/sdist, Markdown links, clean diff and signed commits. Work stops locally before any push, release, deployment or PR action.
 
 ## Short prompt
 
