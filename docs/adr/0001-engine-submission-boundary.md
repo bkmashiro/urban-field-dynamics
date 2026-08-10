@@ -28,9 +28,9 @@ The browser visual is a replay and evidence interface. It does not contain a sec
 - Multiprocessing distributes independent worlds.
 - JAX may accelerate qualified array kernels after profiling and parity checks.
 - NumPy Philox event tapes provide mechanism-scoped matched randomness.
-- Shapely and PyProj own geometry and CRS operations.
-- Polars/Parquet and DuckDB own snapshot analysis, not hot state transitions.
-- A fast transport surrogate runs in ensembles; AequilibraE is a selected-scenario adapter/oracle.
+- Shapely and PyProj may own future observed-geometry and CRS adapters; the current stylised lattice does not require them.
+- Polars/Parquet and DuckDB remain optional analysis-layer candidates, not hot-state dependencies.
+- A fast transport surrogate runs in ensembles; AequilibraE remains an optional future selected-scenario oracle.
 
 ## Evidence boundary
 
@@ -66,7 +66,7 @@ Simulation output does not inherit a higher status than its inputs. A synthetic 
 
 ### Implement the simulator in TypeScript
 
-Rejected as the authoritative path. TypeScript remains appropriate for the offline replay UI, but the scientific engine benefits more from NumPy/SciPy, geospatial tooling, Parquet analysis and optional JAX.
+Rejected as the authoritative path. TypeScript remains appropriate for the offline replay UI, while the authoritative engine uses Python, NumPy event tapes and optional scientific adapters only when an implemented mechanism requires them.
 
 ### Commit Python under the formal submission
 

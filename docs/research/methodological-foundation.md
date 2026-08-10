@@ -104,9 +104,9 @@ AequilibraE provides explicit traffic classes, demand matrices, graph fields, ge
 
 ## 8. State storage and analysis
 
-NumPy arrays and SciPy sparse matrices hold hot simulation state. Polars and Parquet hold tidy snapshots and event records outside the timestep loop. Polars documents Parquet as a columnar format supporting compression, efficient access and lazy scanning. [8]
+NumPy arrays hold event tapes and numerical diagnostics; frozen Pydantic contracts hold the current synthetic state and evidence schemas. The implemented bounded publication path writes canonical JSON and SHA-256 manifests.
 
-DuckDB queries Parquet campaign outputs. Its Spatial extension is installed and loaded separately, so it remains optional until cross-layer SQL geometry operations provide clear value. Core geometry and CRS transformations remain in Shapely and PyProj. [6]
+Polars, Parquet and DuckDB remain optional analysis-layer candidates rather than implemented runtime requirements. Shapely and PyProj likewise belong in a future observed-geometry/CRS adapter; the current 1,200-cell substrate is stylised and does not use them.
 
 The formal submission receives aggregate JSON, selected traces, GeoJSON, figures and a manifest. Raw campaign artifacts remain in versioned engine releases or declared local artifacts and are not forced into the submission’s 40 MiB package.
 

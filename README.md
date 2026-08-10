@@ -8,12 +8,12 @@ The engine owns stochastic world evolution, policy and ablation campaigns, and e
 
 ## Runtime layers
 
-- NumPy/SciPy reference model
+- NumPy/Pydantic authoritative reference engine
 - process-level world parallelism
-- optional Numba kernels after profiling
-- optional JAX/XLA batch acceleration after CPU qualification
+- optional Numba kernels only after profiling
+- optional JAX/XLA batch acceleration only after CPU qualification
 
-AequilibraE, analysis storage, GPU support, and browser-PDF tooling are optional dependencies rather than bootstrap requirements.
+The core engine has only two direct runtime dependencies: NumPy and Pydantic. AequilibraE, analysis storage, acceleration, GPU and publication tooling remain opt-in extras.
 
 ## Development
 
