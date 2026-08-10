@@ -40,6 +40,18 @@ PositiveFloat = Annotated[float, Field(gt=0.0)]
 AccessibilityDelta = Annotated[float, Field(ge=-1.0, le=1.0)]
 
 
+class MechanismSwitches(BaseModel):
+    """Independent mechanism toggles used by matched-seed ablations."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    agglomeration_enabled: bool = True
+    transport_attraction_enabled: bool = True
+    seasonality_enabled: bool = True
+    environmental_exposure_enabled: bool = True
+    public_coordination_enabled: bool = True
+
+
 class PolicySpec(BaseModel):
     """One public intervention applied at an explicit replanning year."""
 
@@ -77,6 +89,7 @@ class WorldRunConfig(BaseModel):
     environmental_units: tuple[EnvironmentalUnitSpec, ...] = ()
     seasonal_environment: tuple[SeasonalEnvironmentSpec, ...] = ()
     exposure_weights: ExposureWeights | None = None
+    mechanisms: MechanismSwitches = MechanismSwitches()
 
     @model_validator(mode="after")
     def validate_policy_and_units(self) -> WorldRunConfig:
@@ -170,6 +183,7 @@ class WorldResult(BaseModel):
         default_factory=dict
     )
     final_environment_quality: dict[str, float] = Field(default_factory=dict)
+    mechanisms: MechanismSwitches = MechanismSwitches()
 
     @property
     def redevelopment_count(self) -> int:
@@ -199,7 +213,10 @@ def run_world(config: WorldRunConfig) -> WorldResult:
     environment_quality_samples: dict[int, dict[str, list[float]]] = {}
 
     for step in iter_schedule(config.schedule):
-        if step.phase is AnnualPhase.PUBLIC_POLICY:
+        if (
+            step.phase is AnnualPhase.PUBLIC_POLICY
+            and config.mechanisms.public_coordination_enabled
+        ):
             if step.year == config.policy.intervention_year:
                 for unit_id in unit_ids:
                     delta = (
@@ -247,7 +264,10 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                 )
                 transport_traces.setdefault(step.year, {})[step.season.value] = assignment
                 opportunities = {unit_id: location.jobs for unit_id, location in locations.items()}
-                if sum(opportunities.values()) > 0.0:
+                if (
+                    sum(opportunities.values()) > 0.0
+                    and config.mechanisms.transport_attraction_enabled
+                ):
                     generalized_costs = {
                         od_key: min(mode_costs.values())
                         for od_key, mode_costs in assignment.od_mode_costs.items()
@@ -274,9 +294,43 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                             assignment.edge_flows[edge_id] / transport_edges[edge_id].capacity
                             for edge_id in environmental.transport_edge_ids
                         )
+                    seasonal_profile = seasonal_environment[step.season]
+                    if not config.mechanisms.seasonality_enabled:
+                        count = len(seasonal_environment)
+                        seasonal_profile = SeasonalEnvironmentSpec(
+                            season=step.season,
+                            air_background=sum(
+                                profile.air_background for profile in seasonal_environment.values()
+                            )
+                            / count,
+                            noise_background_db=sum(
+                                profile.noise_background_db
+                                for profile in seasonal_environment.values()
+                            )
+                            / count,
+                            heat_stress=sum(
+                                profile.heat_stress for profile in seasonal_environment.values()
+                            )
+                            / count,
+                            night_length_factor=sum(
+                                profile.night_length_factor
+                                for profile in seasonal_environment.values()
+                            )
+                            / count,
+                            green_cooling_strength=sum(
+                                profile.green_cooling_strength
+                                for profile in seasonal_environment.values()
+                            )
+                            / count,
+                            activity_heat_factor=sum(
+                                profile.activity_heat_factor
+                                for profile in seasonal_environment.values()
+                            )
+                            / count,
+                        )
                     exposure = evaluate_exposure(
                         environmental,
-                        seasonal_environment[step.season],
+                        seasonal_profile,
                         traffic_pressure=traffic_pressure,
                         weights=config.exposure_weights,
                     )
@@ -285,7 +339,7 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                         unit_id, []
                     )
                     samples.append(exposure.environment_quality)
-                    if unit_id in locations:
+                    if unit_id in locations and config.mechanisms.environmental_exposure_enabled:
                         locations[unit_id] = locations[unit_id].model_copy(
                             update={"environment_quality": sum(samples) / len(samples)}
                         )
@@ -319,8 +373,14 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                 if remaining < -1e-9:
                     raise ValueError("initial employment is below cohort employment")
                 locations[unit_id] = location.model_copy(update={"jobs": max(0.0, remaining)})
+            firm_cohorts = config.firms
+            if not config.mechanisms.agglomeration_enabled:
+                firm_cohorts = tuple(
+                    cohort.model_copy(update={"agglomeration_weight": 0.0})
+                    for cohort in config.firms
+                )
             allocation = allocate_firms(
-                config.firms,
+                firm_cohorts,
                 tuple(locations.values()),
                 root_seed=config.root_seed,
                 world_id=config.world_id,
@@ -400,4 +460,5 @@ def run_world(config: WorldRunConfig) -> WorldResult:
         final_environment_quality={
             unit_id: location.environment_quality for unit_id, location in locations.items()
         },
+        mechanisms=config.mechanisms,
     )

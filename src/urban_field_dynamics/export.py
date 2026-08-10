@@ -69,7 +69,7 @@ def export_campaign(spec: CampaignSpec, output_dir: Path) -> Path:
         "root_seed": spec.root_seed,
         "matched_world_ids": list(spec.world_ids),
         "evidence_status": "synthetic",
-        "model_scope": "redevelopment-only qualification slice",
+        "model_scope": spec.model_scope,
         "artifacts": [
             {
                 "path": name,

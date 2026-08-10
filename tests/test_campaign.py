@@ -1,3 +1,5 @@
+import pytest
+
 from urban_field_dynamics.campaign import CampaignArm, CampaignSpec, run_campaign
 from urban_field_dynamics.contracts import (
     EvidenceStatus,
@@ -6,7 +8,7 @@ from urban_field_dynamics.contracts import (
     SpatialUnitSpec,
 )
 from urban_field_dynamics.schedule import ScheduleConfig
-from urban_field_dynamics.world import PolicySpec
+from urban_field_dynamics.world import MechanismSwitches, PolicySpec
 
 
 def unit() -> SpatialUnitSpec:
@@ -95,3 +97,36 @@ def test_investment_and_no_inertia_do_not_underperform_synthetic_baseline() -> N
 
 def test_campaign_replay_is_exact() -> None:
     assert run_campaign(spec()) == run_campaign(spec())
+
+
+def test_public_coordination_ablation_blocks_policy_but_preserves_policy_identity() -> None:
+    campaign = spec().model_copy(
+        update={
+            "world_ids": (0,),
+            "arms": (
+                CampaignArm(
+                    arm_id="p1",
+                    policy=PolicySpec(
+                        policy_id="p1",
+                        intervention_year=2026,
+                        accessibility_delta=0.4,
+                    ),
+                ),
+                CampaignArm(
+                    arm_id="p1-no-coordination",
+                    policy=PolicySpec(
+                        policy_id="p1",
+                        intervention_year=2026,
+                        accessibility_delta=0.4,
+                    ),
+                    mechanisms=MechanismSwitches(public_coordination_enabled=False),
+                ),
+            ),
+        }
+    )
+
+    result = run_campaign(campaign)
+    by_arm = {run.arm_id: run.world for run in result.runs}
+    assert by_arm["p1"].final_accessibility["u-001"] == pytest.approx(0.6)
+    assert by_arm["p1-no-coordination"].final_accessibility == {"u-001": 0.2}
+    assert by_arm["p1"].development_shocks == by_arm["p1-no-coordination"].development_shocks

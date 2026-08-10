@@ -24,14 +24,19 @@ uv run ruff check src tests
 uv run ruff format --check src tests
 ```
 
-Run and fully replay-verify the current synthetic qualification campaign:
+Run and fully replay-verify the original redevelopment smoke:
 
 ```bash
 uv run urban-field smoke --output results/smoke-v1
 uv run urban-field verify results/smoke-v1
 ```
 
-`smoke-v1` is a redevelopment-only synthetic mechanism check. It is not a calibrated
+The engine also ships an integrated synthetic fixture covering P0–P3, weighted household and
+firm cohorts, annual market feedback, multimodal transport, seasonal relative exposure, and
+six matched mechanism ablations. The frozen 8-world artifact is an engineering canary, not a
+statistical policy result.
+
+`smoke-v1` is a redevelopment-only synthetic mechanism check. Neither fixture is a calibrated
 Haidian forecast.
 
 ## Research and decisions
