@@ -1,6 +1,9 @@
 from urban_field_dynamics.analysis import integrated_qualification_diagnostics
 from urban_field_dynamics.campaign import run_campaign
-from urban_field_dynamics.scaled_integrated import scaled_integrated_campaign
+from urban_field_dynamics.scaled_integrated import (
+    scaled_integrated_campaign,
+    scaled_stress_evidence_spec,
+)
 from urban_field_dynamics.transport import TransportMode
 
 
@@ -75,3 +78,13 @@ def test_scaled_integrated_one_world_executes_all_matched_arms() -> None:
     assert summaries["p3"].mean_peak_market_residual == 0.0
     assert by_arm["p3"].infrastructure_traces
     assert by_arm["p3"].market_traces
+
+
+def test_scaled_stress_matrix_keeps_policy_and_stress_identity_separate() -> None:
+    evidence = scaled_stress_evidence_spec(world_count=2, end_year=2028)
+
+    assert len(evidence.matrix.scenarios) == 6
+    assert evidence.matrix.scenarios[0].scenario_id == "baseline"
+    assert evidence.matrix.base_campaign.world_ids == (0, 1)
+    assert len(evidence.matrix.base_campaign.arms) == 4
+    assert len(evidence.metrics) == 8

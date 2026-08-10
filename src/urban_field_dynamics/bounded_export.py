@@ -122,7 +122,7 @@ def _derived_artifacts(
         checkpoints=_checkpoints(len(spec.world_ids)),
     )
     equity = observe_campaign_equity(spec, result)
-    decision = campaign_decision_diagnostics(result, equity, diagnostics)
+    decision = campaign_decision_diagnostics(result, equity, diagnostics, spec=spec)
     return {
         "campaign-config.json": _canonical_json(spec.model_dump(mode="json")),
         "summary.json": _canonical_json(result.summary.model_dump(mode="json")),

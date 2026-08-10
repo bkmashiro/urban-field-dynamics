@@ -44,9 +44,19 @@ uv run urban-field verify-sweep \
 The declared accessibility threshold in this built-in canary is only a synthetic engineering
 demonstration. Crossing brackets are not planning standards or calibrated policy advice.
 
+Run and replay-verify the standard bounded P0–P3 stress matrix:
+
+```bash
+uv run urban-field scaled-stress \
+  --output results/scaled-stress-2050-canary-8 \
+  --worlds 8 --end-year 2050 --workers 4
+uv run urban-field verify-stress \
+  results/scaled-stress-2050-canary-8 --workers 4
+```
+
 The engine also ships an integrated synthetic fixture covering P0–P3, weighted household and
 firm cohorts, annual market feedback, multimodal transport, seasonal relative exposure, and
-six matched mechanism ablations. The frozen 8-world artifact is an engineering canary, not a
+nine matched mechanism ablations. The frozen 8-world artifact is an engineering canary, not a
 statistical policy result.
 
 `smoke-v1` is a redevelopment-only synthetic mechanism check. Neither fixture is a calibrated
@@ -70,3 +80,4 @@ Haidian forecast.
 - [Implemented weighted labor matching](docs/model/odd-labor-matching.md)
 - [Implemented public budget and capacity ledger](docs/model/infrastructure-budget-ledger.md)
 - [Implemented bounded annual market response](docs/model/odd-market-clearing.md)
+- [Implemented matched stress and sensitivity matrices](docs/model/stress-sensitivity.md)

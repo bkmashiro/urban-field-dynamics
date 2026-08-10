@@ -7,8 +7,12 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from urban_field_dynamics.export import export_campaign, verify_export
-from urban_field_dynamics.scaled_integrated import scaled_integrated_campaign
+from urban_field_dynamics.scaled_integrated import (
+    scaled_integrated_campaign,
+    scaled_stress_evidence_spec,
+)
 from urban_field_dynamics.smoke import smoke_campaign_spec
+from urban_field_dynamics.stress import export_stress_matrix, verify_stress_export
 from urban_field_dynamics.sweep import PolicySweepSpec, SweepMetric, build_policy_intensity_sweep
 from urban_field_dynamics.sweep_export import (
     SweepThresholdSpec,
@@ -38,6 +42,18 @@ def _parser() -> argparse.ArgumentParser:
     )
     verify_sweep.add_argument("export_dir", type=Path)
     verify_sweep.add_argument("--workers", type=int, default=4)
+
+    stress = subparsers.add_parser("scaled-stress", help="run bounded synthetic stress evidence")
+    stress.add_argument("--output", required=True, type=Path)
+    stress.add_argument("--worlds", type=int, default=8)
+    stress.add_argument("--end-year", type=int, default=2050)
+    stress.add_argument("--workers", type=int, default=4)
+
+    verify_stress = subparsers.add_parser(
+        "verify-stress", help="verify and replay bounded stress evidence"
+    )
+    verify_stress.add_argument("export_dir", type=Path)
+    verify_stress.add_argument("--workers", type=int, default=4)
     return parser
 
 
@@ -95,5 +111,30 @@ def main(argv: Sequence[str] | None = None) -> int:
             max_workers=None if args.workers == 1 else args.workers,
         )
         print(f"verified sweep {evidence.sweep_id} in {args.export_dir}")
+        return 0
+    if args.command == "scaled-stress":
+        if args.worlds <= 0:
+            raise ValueError("worlds must be positive")
+        if args.workers <= 0:
+            raise ValueError("workers must be positive")
+        evidence_spec = scaled_stress_evidence_spec(
+            world_count=args.worlds,
+            end_year=args.end_year,
+        )
+        evidence = export_stress_matrix(
+            evidence_spec,
+            args.output,
+            max_workers=None if args.workers == 1 else args.workers,
+        )
+        print(f"exported stress matrix {evidence.matrix_id} to {args.output}")
+        return 0
+    if args.command == "verify-stress":
+        if args.workers <= 0:
+            raise ValueError("workers must be positive")
+        evidence = verify_stress_export(
+            args.export_dir,
+            max_workers=None if args.workers == 1 else args.workers,
+        )
+        print(f"verified stress matrix {evidence.matrix_id} in {args.export_dir}")
         return 0
     raise AssertionError(f"unhandled command: {args.command}")

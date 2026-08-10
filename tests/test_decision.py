@@ -7,6 +7,7 @@ from urban_field_dynamics.analysis import (
 from urban_field_dynamics.campaign import run_campaign
 from urban_field_dynamics.decision import (
     ArmObjectiveVector,
+    LeverageStatus,
     ObjectiveDirection,
     ObjectiveSpec,
     campaign_decision_diagnostics,
@@ -16,6 +17,7 @@ from urban_field_dynamics.decision import (
 )
 from urban_field_dynamics.equity import observe_campaign_equity
 from urban_field_dynamics.integrated import integrated_smoke_campaign
+from urban_field_dynamics.scaled_integrated import scaled_integrated_campaign
 
 
 def test_pareto_front_preserves_tradeoffs_and_dominates_strictly_worse_arm() -> None:
@@ -88,3 +90,41 @@ def test_campaign_decision_bundle_keeps_pareto_and_tail_harm_separate() -> None:
     assert decision.pareto.nondominated_arm_ids
     assert set(decision.pareto.nondominated_arm_ids).issubset({"p0", "p1", "p2", "p3"})
     assert set(decision.tail_harm) == set(qualification.comparisons)
+
+
+def test_scaled_decision_reports_cost_leverage_and_group_tail_harm() -> None:
+    spec = scaled_integrated_campaign(world_count=2, end_year=2028)
+    result = run_campaign(spec)
+    equity = observe_campaign_equity(spec, result)
+    qualification = integrated_qualification_diagnostics(result, checkpoints=(2,))
+
+    decision = campaign_decision_diagnostics(
+        result,
+        equity,
+        qualification,
+        spec=spec,
+    )
+
+    leverage = decision.leverage["p3:accessibility"]
+    assert leverage.incremental_public_cost > 0.0
+    assert leverage.denominator_provenance
+    assert leverage.ratio_per_cost_unit is not None
+    assert leverage.status is LeverageStatus.AVAILABLE
+    assert decision.group_tail_harm
+    assert all(item.world_count == 2 for item in decision.group_tail_harm.values())
+
+    baseline_cost = result.summary.arms["p0"].mean_cumulative_public_spend
+    p1 = result.summary.arms["p1"].model_copy(
+        update={"mean_cumulative_public_spend": baseline_cost}
+    )
+    arms = {**result.summary.arms, "p1": p1}
+    zero_cost_result = result.model_copy(
+        update={"summary": result.summary.model_copy(update={"arms": arms})}
+    )
+    zero_cost = campaign_decision_diagnostics(
+        zero_cost_result,
+        equity,
+        qualification,
+    ).leverage["p1:accessibility"]
+    assert zero_cost.status is LeverageStatus.NON_POSITIVE_INCREMENTAL_COST
+    assert zero_cost.ratio_per_cost_unit is None

@@ -52,10 +52,11 @@ def _weighted_mean(values: list[tuple[float, float]]) -> float:
     return sum(value * item_weight for value, item_weight in values) / weight
 
 
-def _world_groups(
+def world_group_metrics(
     spec: CampaignSpec,
     world: WorldResult,
 ) -> dict[str, dict[str, float | None]]:
+    """Return one world's population-weighted group outcomes."""
     accumulators: dict[str, dict[str, list[tuple[float, float]]]] = defaultdict(
         lambda: defaultdict(list)
     )
@@ -150,7 +151,7 @@ def observe_campaign_equity(
         )
         if not worlds:
             raise ValueError(f"campaign arm has no runs: {arm.arm_id}")
-        observed = [_world_groups(spec, world) for world in worlds]
+        observed = [world_group_metrics(spec, world) for world in worlds]
         group_ids = sorted(observed[0])
         if any(sorted(item) != group_ids for item in observed):
             raise ValueError("equity group membership changed across worlds")

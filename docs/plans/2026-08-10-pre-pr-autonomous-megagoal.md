@@ -138,10 +138,10 @@ For bounded campaign work, execute the real exporter and verifier, not only unit
 
 ### Track E — Robustness and decision evidence
 
-- [ ] Add declared exogenous stress scenarios (growth, firm shock, transport disruption, heat/exposure, service constraint) whose identity is separate from policy.
+- [x] Add declared exogenous stress scenarios whose identity is separate from policy.
 - [ ] Add multi-world stress/sensitivity matrix and replay-verifiable bounded export.
-- [ ] Add group-level tail harm, explicit policy cost, leverage ratios with denominator provenance, and no-score Pareto diagnostics.
-- [ ] Add threshold/tipping sweep evidence across matched worlds with brackets and stability diagnostics.
+- [x] Add group tail harm, explicit policy cost, provenance-bearing leverage, and no-score Pareto diagnostics.
+- [x] Add matched-world threshold brackets and stability evidence.
 
 ### Track F — Performance and qualification
 

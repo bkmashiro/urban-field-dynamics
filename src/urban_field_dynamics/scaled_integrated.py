@@ -33,6 +33,12 @@ from urban_field_dynamics.spatial import (
     generate_stylized_grid,
     generate_stylized_zoning,
 )
+from urban_field_dynamics.stress import (
+    StressEvidenceSpec,
+    StressMatrixSpec,
+    StressMetric,
+    StressScenario,
+)
 from urban_field_dynamics.transport import (
     ODPair,
     TransportAssignmentSpec,
@@ -571,4 +577,58 @@ def scaled_integrated_campaign(
         environmental_units=_environment(grid, zoning, road_edges),
         seasonal_environment=_seasons(),
         exposure_weights=ExposureWeights(air=0.3, noise=0.2, light=0.15, heat=0.35),
+    )
+
+
+def scaled_stress_evidence_spec(
+    *,
+    world_count: int = 8,
+    end_year: int = 2050,
+) -> StressEvidenceSpec:
+    """Return the standard synthetic one-at-a-time stress matrix."""
+
+    full = scaled_integrated_campaign(world_count=world_count, end_year=end_year)
+    values = full.model_dump(mode="python")
+    values["arms"] = tuple(arm for arm in full.arms if arm.arm_id in {"p0", "p1", "p2", "p3"})
+    base = CampaignSpec.model_validate(values)
+    return StressEvidenceSpec(
+        matrix=StressMatrixSpec(
+            matrix_id=f"scaled-stress-{end_year}-{world_count}",
+            base_campaign=base,
+            scenarios=(
+                StressScenario(scenario_id="baseline"),
+                StressScenario(
+                    scenario_id="growth-pressure",
+                    household_growth_rate_delta=0.01,
+                ),
+                StressScenario(
+                    scenario_id="firm-contraction",
+                    firm_growth_rate_delta=-0.02,
+                    firm_death_probability_delta=0.02,
+                    firm_birth_probability_multiplier=0.7,
+                ),
+                StressScenario(
+                    scenario_id="transport-disruption",
+                    transport_capacity_multiplier=0.7,
+                ),
+                StressScenario(
+                    scenario_id="heat-stress",
+                    heat_stress_delta=0.15,
+                ),
+                StressScenario(
+                    scenario_id="service-constraint",
+                    service_capacity_multiplier=0.8,
+                ),
+            ),
+        ),
+        metrics=(
+            StressMetric.FINAL_ACCESSIBILITY,
+            StressMetric.FINAL_ENVIRONMENT_QUALITY,
+            StressMetric.FINAL_RENT,
+            StressMetric.FINAL_POPULATION,
+            StressMetric.FINAL_EMPLOYMENT,
+            StressMetric.FINAL_UNEMPLOYMENT,
+            StressMetric.FINAL_SERVICE_UNMET,
+            StressMetric.CUMULATIVE_PUBLIC_SPEND,
+        ),
     )

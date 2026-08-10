@@ -8,8 +8,8 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from urban_field_dynamics.analysis import PairedConvergenceDiagnostic, QualificationDiagnostics
-from urban_field_dynamics.campaign import CampaignResult
-from urban_field_dynamics.equity import CampaignEquitySummary
+from urban_field_dynamics.campaign import CampaignResult, CampaignSpec
+from urban_field_dynamics.equity import CampaignEquitySummary, world_group_metrics
 
 
 class ObjectiveDirection(StrEnum):
@@ -67,12 +67,51 @@ class TailHarmSummary(BaseModel):
     q90_harm: float = Field(ge=0.0)
 
 
+class LeverageStatus(StrEnum):
+    AVAILABLE = "available"
+    NON_POSITIVE_INCREMENTAL_COST = "non_positive_incremental_cost"
+
+
+class LeverageRatio(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
+
+    arm_id: str
+    objective_id: str
+    direction: ObjectiveDirection
+    baseline_value: float
+    arm_value: float
+    numerator_improvement: float
+    baseline_public_cost: float
+    arm_public_cost: float
+    incremental_public_cost: float
+    denominator_provenance: str
+    ratio_per_cost_unit: float | None = None
+    status: LeverageStatus
+
+
+class GroupTailHarmSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
+
+    baseline_arm: str
+    comparator_arm: str
+    group_id: str
+    metric: str
+    direction: ObjectiveDirection
+    world_count: int = Field(gt=0)
+    harmed_world_count: int = Field(ge=0)
+    harmed_fraction: float = Field(ge=0.0, le=1.0)
+    worst_harm: float = Field(ge=0.0)
+    q90_harm: float = Field(ge=0.0)
+
+
 class CampaignDecisionDiagnostics(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     campaign_id: str
     pareto: ParetoResult
     tail_harm: dict[str, TailHarmSummary]
+    leverage: dict[str, LeverageRatio] = Field(default_factory=dict)
+    group_tail_harm: dict[str, GroupTailHarmSummary] = Field(default_factory=dict)
 
 
 def _dominates(
@@ -171,17 +210,133 @@ def summarize_tail_harm(diagnostic: PairedConvergenceDiagnostic) -> TailHarmSumm
     )
 
 
+def _policy_leverage(
+    result: CampaignResult,
+    policy_arm_ids: tuple[str, ...],
+) -> dict[str, LeverageRatio]:
+    baseline = result.summary.arms[policy_arm_ids[0]]
+    baseline_cost = baseline.mean_cumulative_public_spend
+    if baseline_cost is None:
+        return {}
+    objectives = (
+        ("accessibility", ObjectiveDirection.MAXIMIZE, "mean_final_accessibility"),
+        ("environment", ObjectiveDirection.MAXIMIZE, "mean_final_environment_quality"),
+        ("rent", ObjectiveDirection.MINIMIZE, "mean_final_rent"),
+        ("service-unmet", ObjectiveDirection.MINIMIZE, "mean_final_service_unmet_demand"),
+        ("unemployment", ObjectiveDirection.MINIMIZE, "mean_final_unemployment_rate"),
+    )
+    evidence: dict[str, LeverageRatio] = {}
+    for arm_id in policy_arm_ids[1:]:
+        arm = result.summary.arms[arm_id]
+        if arm.mean_cumulative_public_spend is None:
+            continue
+        incremental_cost = arm.mean_cumulative_public_spend - baseline_cost
+        status = (
+            LeverageStatus.AVAILABLE
+            if incremental_cost > 0.0
+            else LeverageStatus.NON_POSITIVE_INCREMENTAL_COST
+        )
+        for objective_id, direction, attribute in objectives:
+            baseline_value = getattr(baseline, attribute)
+            arm_value = getattr(arm, attribute)
+            if baseline_value is None or arm_value is None:
+                continue
+            improvement = float(arm_value) - float(baseline_value)
+            if direction is ObjectiveDirection.MINIMIZE:
+                improvement = -improvement
+            key = f"{arm_id}:{objective_id}"
+            evidence[key] = LeverageRatio(
+                arm_id=arm_id,
+                objective_id=objective_id,
+                direction=direction,
+                baseline_value=float(baseline_value),
+                arm_value=float(arm_value),
+                numerator_improvement=improvement,
+                baseline_public_cost=baseline_cost,
+                arm_public_cost=arm.mean_cumulative_public_spend,
+                incremental_public_cost=incremental_cost,
+                denominator_provenance=(
+                    "campaign mean cumulative synthetic public spend minus p0 campaign mean"
+                ),
+                ratio_per_cost_unit=(
+                    improvement / incremental_cost if status is LeverageStatus.AVAILABLE else None
+                ),
+                status=status,
+            )
+    return evidence
+
+
+def _group_tail_harm(
+    spec: CampaignSpec,
+    result: CampaignResult,
+    policy_arm_ids: tuple[str, ...],
+) -> dict[str, GroupTailHarmSummary]:
+    runs = {(run.arm_id, run.world.world_id): run.world for run in result.runs}
+    world_ids = result.summary.matched_world_ids
+    baseline_id = policy_arm_ids[0]
+    metrics = {
+        "accessibility": ObjectiveDirection.MAXIMIZE,
+        "environment": ObjectiveDirection.MAXIMIZE,
+        "service": ObjectiveDirection.MAXIMIZE,
+        "rent_burden": ObjectiveDirection.MINIMIZE,
+        "relocation": ObjectiveDirection.MINIMIZE,
+        "unemployment": ObjectiveDirection.MINIMIZE,
+        "commute": ObjectiveDirection.MINIMIZE,
+    }
+    baseline = {
+        world_id: world_group_metrics(spec, runs[(baseline_id, world_id)]) for world_id in world_ids
+    }
+    evidence: dict[str, GroupTailHarmSummary] = {}
+    for arm_id in policy_arm_ids[1:]:
+        comparator = {
+            world_id: world_group_metrics(spec, runs[(arm_id, world_id)]) for world_id in world_ids
+        }
+        group_ids = sorted(baseline[world_ids[0]])
+        for group_id in group_ids:
+            for metric, direction in metrics.items():
+                pairs = [
+                    (
+                        baseline[world_id][group_id][metric],
+                        comparator[world_id][group_id][metric],
+                    )
+                    for world_id in world_ids
+                ]
+                if any(left is None or right is None for left, right in pairs):
+                    continue
+                improvements = [float(right) - float(left) for left, right in pairs]
+                if direction is ObjectiveDirection.MINIMIZE:
+                    improvements = [-value for value in improvements]
+                harms = [max(0.0, -value) for value in improvements]
+                key = f"{arm_id}:{group_id}:{metric}"
+                evidence[key] = GroupTailHarmSummary(
+                    baseline_arm=baseline_id,
+                    comparator_arm=arm_id,
+                    group_id=group_id,
+                    metric=metric,
+                    direction=direction,
+                    world_count=len(world_ids),
+                    harmed_world_count=sum(value > 0.0 for value in harms),
+                    harmed_fraction=sum(value > 0.0 for value in harms) / len(harms),
+                    worst_harm=max(harms),
+                    q90_harm=float(np.quantile(harms, 0.9)),
+                )
+    return evidence
+
+
 def campaign_decision_diagnostics(
     result: CampaignResult,
     equity: CampaignEquitySummary,
     qualification: QualificationDiagnostics,
     *,
+    spec: CampaignSpec | None = None,
     policy_arm_ids: tuple[str, ...] = ("p0", "p1", "p2", "p3"),
 ) -> CampaignDecisionDiagnostics:
     """Build an unweighted Pareto front and matched-world tail-harm bundle."""
 
     if len({result.campaign_id, equity.campaign_id, qualification.campaign_id}) != 1:
         raise ValueError("decision inputs must share one campaign ID")
+    if spec is not None and spec.campaign_id != result.campaign_id:
+        raise ValueError("decision campaign spec must share the result campaign ID")
     objectives = [
         ObjectiveSpec(objective_id="accessibility", direction=ObjectiveDirection.MAXIMIZE),
         ObjectiveSpec(objective_id="environment", direction=ObjectiveDirection.MAXIMIZE),
@@ -263,4 +418,8 @@ def campaign_decision_diagnostics(
             comparison_id: summarize_tail_harm(diagnostic)
             for comparison_id, diagnostic in qualification.comparisons.items()
         },
+        leverage=_policy_leverage(result, policy_arm_ids),
+        group_tail_harm=(
+            _group_tail_harm(spec, result, policy_arm_ids) if spec is not None else {}
+        ),
     )
