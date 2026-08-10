@@ -112,9 +112,9 @@ For bounded campaign work, execute the real exporter and verifier, not only unit
 
 ### Track A — Sweep evidence completion
 
-- [ ] Add strict sweep campaign/result contracts with world-level responses and matched identity checks.
-- [ ] Add bounded sweep export, manifest hashes, full replay verification, CLI/tool entry, and 8-world real canary.
-- [ ] Record threshold brackets as declared engineering thresholds only; never infer a planning standard.
+- [x] Add strict sweep campaign/result contracts with world-level responses and matched identity checks.
+- [x] Add bounded sweep export, manifest hashes, full replay verification, CLI/tool entry, and 8-world real canary.
+- [x] Record threshold brackets as declared engineering thresholds only; never infer a planning standard.
 
 ### Track B — Labor matching
 
@@ -189,6 +189,7 @@ If blocked, record the blocker here and report exact modified files, tests, Git 
 ## Completion log
 
 - 2026-08-10: Roadmap created from live commit `39901ff`; current 32-world/384-run long-horizon bounded qualification and 107-test gate already verified. Next: Track A sweep evidence completion.
+- 2026-08-10: Track A complete. Added per-world matched sweep responses, random-identity validation, bounded hash/replay evidence, stable CLI, and a real 8-world × 5-level × 2026–2050 export/replay canary (1.1 MiB). Next: Track B labor matching.
 
 ## Short prompt
 

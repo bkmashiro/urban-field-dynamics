@@ -31,6 +31,19 @@ uv run urban-field smoke --output results/smoke-v1
 uv run urban-field verify results/smoke-v1
 ```
 
+Run and fully replay-verify the bounded synthetic P3 intensity canary:
+
+```bash
+uv run urban-field scaled-sweep \
+  --output results/scaled-p3-intensity-canary-8-bounded \
+  --worlds 8 --end-year 2050 --workers 4
+uv run urban-field verify-sweep \
+  results/scaled-p3-intensity-canary-8-bounded --workers 4
+```
+
+The declared accessibility threshold in this built-in canary is only a synthetic engineering
+demonstration. Crossing brackets are not planning standards or calibrated policy advice.
+
 The engine also ships an integrated synthetic fixture covering P0–P3, weighted household and
 firm cohorts, annual market feedback, multimodal transport, seasonal relative exposure, and
 six matched mechanism ablations. The frozen 8-world artifact is an engineering canary, not a

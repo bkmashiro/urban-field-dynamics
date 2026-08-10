@@ -56,6 +56,15 @@ class SweepResponse(BaseModel):
     metric: SweepMetric
     levels: tuple[float, ...]
     responses: tuple[float, ...]
+    world_responses: tuple[SweepWorldResponse, ...]
+
+
+class SweepWorldResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
+
+    world_id: int
+    levels: tuple[float, ...]
+    responses: tuple[float, ...]
 
 
 def _scale_deltas(values: dict[str, float], intensity: float) -> dict[str, float]:
@@ -150,11 +159,65 @@ def summarize_sweep(
         SweepMetric.FINAL_RENT: "mean_final_rent",
     }[selected]
     ordered = sorted(sweep.intensity_by_arm.items(), key=lambda item: item[1])
+    levels = tuple(level for _, level in ordered)
+    runs_by_identity = {(run.world.world_id, run.arm_id): run.world for run in result.runs}
+    world_responses = tuple(
+        SweepWorldResponse(
+            world_id=world_id,
+            levels=levels,
+            responses=tuple(
+                _world_metric(runs_by_identity[(world_id, arm_id)], selected)
+                for arm_id, _ in ordered
+            ),
+        )
+        for world_id in sweep.campaign.world_ids
+    )
     return SweepResponse(
         sweep_id=sweep.sweep_id,
         metric=selected,
-        levels=tuple(level for _, level in ordered),
+        levels=levels,
         responses=tuple(
             float(getattr(result.summary.arms[arm_id], attribute)) for arm_id, _ in ordered
         ),
+        world_responses=world_responses,
     )
+
+
+def _world_metric(world: object, metric: SweepMetric) -> float:
+    if metric is SweepMetric.REDEVELOPMENTS:
+        return float(world.redevelopment_count)
+    values = {
+        SweepMetric.FINAL_ACCESSIBILITY: world.final_accessibility,
+        SweepMetric.FINAL_ENVIRONMENT_QUALITY: world.final_environment_quality,
+        SweepMetric.FINAL_RENT: world.final_rents,
+    }[metric]
+    return sum(values.values()) / len(values) if values else 0.0
+
+
+def assert_matched_sweep_random_identity(
+    sweep: BuiltPolicySweep,
+    result: CampaignResult,
+) -> None:
+    """Fail when policy intensity changes any exogenous event-tape identity."""
+
+    if result.campaign_id != sweep.campaign.campaign_id:
+        raise ValueError("sweep campaign and result IDs must match")
+    arm_ids = tuple(sweep.intensity_by_arm)
+    identity_fields = (
+        "development_shocks",
+        "household_taste_shocks",
+        "firm_taste_shocks",
+        "household_growth_shocks",
+        "firm_death_shocks",
+        "firm_expansion_shocks",
+        "firm_birth_shocks",
+    )
+    by_identity = {(run.world.world_id, run.arm_id): run.world for run in result.runs}
+    for world_id in sweep.campaign.world_ids:
+        reference = by_identity[(world_id, arm_ids[0])]
+        for arm_id in arm_ids[1:]:
+            candidate = by_identity[(world_id, arm_id)]
+            for field in identity_fields:
+                if getattr(candidate, field) != getattr(reference, field):
+                    identity = f"world={world_id} arm={arm_id} field={field}"
+                    raise ValueError(f"sweep random identity mismatch: {identity}")

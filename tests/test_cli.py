@@ -8,3 +8,27 @@ def test_cli_exports_and_verifies_smoke_campaign(tmp_path, capsys) -> None:
     assert "smoke-v1" in capsys.readouterr().out
     assert main(["verify", str(output)]) == 0
     assert "verified" in capsys.readouterr().out
+
+
+def test_cli_exports_and_verifies_scaled_policy_sweep(tmp_path, capsys) -> None:
+    output = tmp_path / "sweep"
+
+    assert (
+        main(
+            [
+                "scaled-sweep",
+                "--output",
+                str(output),
+                "--worlds",
+                "1",
+                "--end-year",
+                "2028",
+                "--workers",
+                "1",
+            ]
+        )
+        == 0
+    )
+    assert "scaled-p3-intensity-canary-1" in capsys.readouterr().out
+    assert main(["verify-sweep", str(output), "--workers", "1"]) == 0
+    assert "verified sweep" in capsys.readouterr().out

@@ -4,6 +4,7 @@ from urban_field_dynamics.campaign import run_campaign
 from urban_field_dynamics.integrated import integrated_smoke_campaign
 from urban_field_dynamics.sweep import (
     PolicySweepSpec,
+    assert_matched_sweep_random_identity,
     build_policy_intensity_sweep,
     scale_policy,
     summarize_sweep,
@@ -58,6 +59,10 @@ def test_matched_sweep_preserves_event_tapes_and_reports_ordered_response() -> N
     assert response.levels == (0.0, 0.5, 1.0)
     assert len(response.responses) == 3
     assert len(set(response.responses)) > 1
+    assert response.world_responses[0].world_id == 0
+    assert response.world_responses[0].levels == response.levels
+    assert response.world_responses[0].responses == response.responses
+    assert_matched_sweep_random_identity(sweep, result)
 
 
 def test_sweep_rejects_duplicate_intensities() -> None:
