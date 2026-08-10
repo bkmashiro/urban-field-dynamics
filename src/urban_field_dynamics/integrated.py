@@ -174,7 +174,9 @@ def integrated_smoke_campaign(*, world_count: int = 8) -> CampaignSpec:
         green_fraction_delta_by_unit={"unit-north": 0.4, "unit-south": 0.3},
     )
     return CampaignSpec(
-        campaign_id="integrated-smoke-v1",
+        campaign_id=(
+            "integrated-smoke-v1" if world_count == 8 else f"integrated-qualification-{world_count}"
+        ),
         model_scope=(
             "integrated agent, transport, environment, and redevelopment qualification slice"
         ),

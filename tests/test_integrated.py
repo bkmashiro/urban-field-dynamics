@@ -20,6 +20,10 @@ def test_integrated_smoke_has_four_policies_and_six_matched_ablations() -> None:
     }
 
 
+def test_larger_integrated_campaign_is_not_labelled_as_smoke() -> None:
+    assert integrated_smoke_campaign(world_count=64).campaign_id == "integrated-qualification-64"
+
+
 def test_integrated_smoke_runs_all_arms_and_preserves_event_tapes() -> None:
     result = run_campaign(integrated_smoke_campaign(world_count=2))
 
