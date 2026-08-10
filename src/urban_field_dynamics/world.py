@@ -721,7 +721,12 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                 generalized_cost_skim(
                     tuple(transport_edges.values()),
                     latest_assignment.edge_travel_minutes,
-                    nodes=tuple(locations),
+                    origins=tuple(
+                        household_locations[cohort.cohort_id] for cohort in current_households
+                    ),
+                    destinations=tuple(
+                        firm_locations[cohort.cohort_id] for cohort in current_firms
+                    ),
                 )
                 if latest_assignment is not None
                 else {}
