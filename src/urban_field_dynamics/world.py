@@ -62,6 +62,7 @@ class PolicySpec(BaseModel):
     accessibility_delta: AccessibilityDelta = 0.0
     accessibility_delta_by_unit: dict[str, AccessibilityDelta] = Field(default_factory=dict)
     transport_capacity_multiplier_by_edge: dict[str, PositiveFloat] = Field(default_factory=dict)
+    transport_time_multiplier_by_edge: dict[str, PositiveFloat] = Field(default_factory=dict)
     green_fraction_delta_by_unit: dict[str, AccessibilityDelta] = Field(default_factory=dict)
 
 
@@ -78,6 +79,7 @@ class WorldRunConfig(BaseModel):
     transition_inertia_enabled: bool = True
     development_shock_scale: NonNegativeFloat = 0.0
     locations: tuple[LocationState, ...] = ()
+    location_members: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     households: tuple[HouseholdCohortSpec, ...] = ()
     firms: tuple[FirmCohortSpec, ...] = ()
     market: MarketClearingSpec | None = None
@@ -100,15 +102,22 @@ class WorldRunConfig(BaseModel):
             raise ValueError("unit_id values must be unique")
         if not set(self.policy.accessibility_delta_by_unit).issubset(unit_ids):
             raise ValueError("policy accessibility unit IDs must exist in units")
-        if not set(self.policy.green_fraction_delta_by_unit).issubset(unit_ids):
-            raise ValueError("policy green-fraction unit IDs must exist in units")
-
         if self.locations or self.households or self.firms:
             location_ids = [location.unit_id for location in self.locations]
             if len(location_ids) != len(set(location_ids)):
                 raise ValueError("location unit_id values must be unique")
-            if set(location_ids) != set(unit_ids):
-                raise ValueError("locations must match spatial unit IDs")
+            if self.location_members:
+                if set(self.location_members) != set(location_ids):
+                    raise ValueError("location_members keys must match location IDs")
+                members = [
+                    member_id
+                    for location_id in location_ids
+                    for member_id in self.location_members[location_id]
+                ]
+                if len(members) != len(set(members)) or set(members) != set(unit_ids):
+                    raise ValueError("location_members must cover every spatial unit exactly once")
+            elif set(location_ids) != set(unit_ids):
+                raise ValueError("locations must match spatial unit IDs without location_members")
             if (self.households or self.firms) and self.market is None:
                 raise ValueError("market is required when agent state is configured")
             known_locations = set(location_ids)
@@ -133,6 +142,8 @@ class WorldRunConfig(BaseModel):
             raise ValueError("transport edge IDs must be unique")
         if not set(self.policy.transport_capacity_multiplier_by_edge).issubset(edge_ids):
             raise ValueError("policy transport edge IDs must exist in transport_edges")
+        if not set(self.policy.transport_time_multiplier_by_edge).issubset(edge_ids):
+            raise ValueError("policy transport-time edge IDs must exist in transport_edges")
 
         environment_values = (
             bool(self.environmental_units),
@@ -143,10 +154,17 @@ class WorldRunConfig(BaseModel):
             raise ValueError("environment units, seasons, and weights must be configured together")
         if self.environmental_units:
             environmental_ids = [unit.unit_id for unit in self.environmental_units]
-            if set(environmental_ids) != set(unit_ids):
-                raise ValueError("environmental units must match spatial unit IDs")
+            expected_environment_ids = (
+                {location.unit_id for location in self.locations}
+                if self.locations
+                else set(unit_ids)
+            )
+            if set(environmental_ids) != expected_environment_ids:
+                raise ValueError("environmental units must match configured location IDs")
             if len(environmental_ids) != len(set(environmental_ids)):
                 raise ValueError("environmental unit IDs must be unique")
+            if not set(self.policy.green_fraction_delta_by_unit).issubset(environmental_ids):
+                raise ValueError("policy green-fraction IDs must exist in environmental units")
             seasons = [profile.season for profile in self.seasonal_environment]
             if len(seasons) != len(set(seasons)) or set(seasons) != set(Season):
                 raise ValueError("seasonal environment must define each season exactly once")
@@ -155,6 +173,8 @@ class WorldRunConfig(BaseModel):
             }
             if not referenced_edges.issubset(edge_ids):
                 raise ValueError("environment transport edge IDs must exist in transport_edges")
+        elif self.policy.green_fraction_delta_by_unit:
+            raise ValueError("green-fraction policy requires environmental units")
         return self
 
 
@@ -242,6 +262,16 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                     transport_edges[edge_id] = edge.model_copy(
                         update={"capacity": edge.capacity * multiplier}
                     )
+                for edge_id, multiplier in config.policy.transport_time_multiplier_by_edge.items():
+                    edge = transport_edges[edge_id]
+                    transport_edges[edge_id] = edge.model_copy(
+                        update={
+                            "free_flow_minutes": edge.free_flow_minutes * multiplier,
+                            "generalized_penalty_minutes": (
+                                edge.generalized_penalty_minutes * multiplier
+                            ),
+                        }
+                    )
                 for unit_id, delta in config.policy.green_fraction_delta_by_unit.items():
                     environmental = environmental_units[unit_id]
                     environmental_units[unit_id] = environmental.model_copy(
@@ -249,6 +279,14 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                             "green_fraction": min(
                                 1.0, max(0.0, environmental.green_fraction + delta)
                             )
+                        }
+                    )
+                for location_id, location in locations.items():
+                    member_ids = config.location_members.get(location_id, (location_id,))
+                    locations[location_id] = location.model_copy(
+                        update={
+                            "accessibility": sum(accessibility[item] for item in member_ids)
+                            / len(member_ids)
                         }
                     )
 
@@ -277,13 +315,15 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                         opportunities=opportunities,
                         decay=config.accessibility_decay,
                     )
-                    for unit_id, value in skim.items():
-                        if unit_id in accessibility:
-                            accessibility[unit_id] = value
-                        if unit_id in locations:
-                            locations[unit_id] = locations[unit_id].model_copy(
+                    for location_id, value in skim.items():
+                        if location_id in locations:
+                            locations[location_id] = locations[location_id].model_copy(
                                 update={"accessibility": value}
                             )
+                            for member_id in config.location_members.get(
+                                location_id, (location_id,)
+                            ):
+                                accessibility[member_id] = value
 
             if config.exposure_weights is not None:
                 seasonal_results: dict[str, ExposureResult] = {}

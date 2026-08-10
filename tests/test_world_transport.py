@@ -79,6 +79,7 @@ def test_transport_capacity_policy_improves_accessibility_through_assignment() -
                 policy_id="p1",
                 intervention_year=2026,
                 transport_capacity_multiplier_by_edge={"road-aa": 10.0},
+                transport_time_multiplier_by_edge={"road-aa": 0.5},
             )
         )
     )

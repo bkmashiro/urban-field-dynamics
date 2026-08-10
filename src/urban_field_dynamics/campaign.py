@@ -58,6 +58,7 @@ class CampaignSpec(BaseModel):
     arms: Annotated[tuple[CampaignArm, ...], Field(min_length=1)]
     development_shock_scale: NonNegativeFloat = 0.0
     locations: tuple[LocationState, ...] = ()
+    location_members: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     households: tuple[HouseholdCohortSpec, ...] = ()
     firms: tuple[FirmCohortSpec, ...] = ()
     market: MarketClearingSpec | None = None
@@ -146,6 +147,7 @@ def run_campaign(spec: CampaignSpec) -> CampaignResult:
                             development_shock_scale=spec.development_shock_scale,
                             mechanisms=arm.mechanisms,
                             locations=spec.locations,
+                            location_members=spec.location_members,
                             households=spec.households,
                             firms=spec.firms,
                             market=spec.market,

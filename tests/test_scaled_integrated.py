@@ -1,0 +1,36 @@
+from urban_field_dynamics.campaign import run_campaign
+from urban_field_dynamics.scaled_integrated import scaled_integrated_campaign
+from urban_field_dynamics.transport import TransportMode
+
+
+def test_scaled_integrated_contract_has_1200_cells_and_48_explicit_zones() -> None:
+    spec = scaled_integrated_campaign(world_count=1)
+
+    assert len(spec.units) == 1_200
+    assert len(spec.locations) == 48
+    assert len(spec.location_members) == 48
+    assert {member for members in spec.location_members.values() for member in members} == {
+        unit.unit_id for unit in spec.units
+    }
+    assert len(spec.households) == 6
+    assert len(spec.firms) == 6
+    assert len(spec.arms) == 10
+    assert {edge.mode for edge in spec.transport_edges} == set(TransportMode)
+
+
+def test_scaled_integrated_one_world_executes_all_matched_arms() -> None:
+    result = run_campaign(scaled_integrated_campaign(world_count=1))
+
+    assert result.summary.run_count == 10
+    worlds = [run.world for run in result.runs]
+    assert all(len(world.final_uses) == 1_200 for world in worlds)
+    assert all(len(world.final_rents) == 48 for world in worlds)
+    assert len({str(world.development_shocks) for world in worlds}) == 1
+    assert len({str(world.household_taste_shocks) for world in worlds}) == 1
+    assert len({str(world.firm_taste_shocks) for world in worlds}) == 1
+    summaries = result.summary.arms
+    assert summaries["p1"].mean_final_accessibility > summaries["p0"].mean_final_accessibility
+    assert (
+        summaries["p2"].mean_final_environment_quality
+        > summaries["p0"].mean_final_environment_quality
+    )

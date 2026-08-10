@@ -1,7 +1,9 @@
 from urban_field_dynamics.spatial import (
     FocusZoneSpec,
     StylizedGridSpec,
+    StylizedZoningSpec,
     generate_stylized_grid,
+    generate_stylized_zoning,
 )
 
 
@@ -85,3 +87,23 @@ def test_spatial_bootstrap_replays_exactly_and_seed_changes_only_initial_state()
     assert tuple(unit.spec for unit in first.units) != tuple(
         unit.spec for unit in alternative.units
     )
+
+
+def test_1200_cells_aggregate_to_48_complete_symmetric_zones() -> None:
+    spatial_grid = generate_stylized_grid(grid_spec())
+    zoning = generate_stylized_zoning(
+        spatial_grid,
+        StylizedZoningSpec(block_rows=5, block_columns=5),
+    )
+
+    assert len(zoning.zones) == 48
+    assert sum(len(zone.member_unit_ids) for zone in zoning.zones) == 1_200
+    assert len({item for zone in zoning.zones for item in zone.member_unit_ids}) == 1_200
+    by_id = {zone.zone_id: zone for zone in zoning.zones}
+    assert len(by_id["zone-r00-c00"].neighbor_zone_ids) == 2
+    assert len(by_id["zone-r04-c03"].neighbor_zone_ids) == 4
+    for zone in zoning.zones:
+        for neighbor_id in zone.neighbor_zone_ids:
+            assert zone.zone_id in by_id[neighbor_id].neighbor_zone_ids
+    assert any(zone.focus_zone_ids for zone in zoning.zones)
+    assert any(zone.is_corridor_observer for zone in zoning.zones)

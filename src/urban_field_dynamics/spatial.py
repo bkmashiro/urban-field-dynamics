@@ -18,6 +18,7 @@ from urban_field_dynamics.event_tape import EventTapeSpec, generate_event_tape
 PositiveInt = Annotated[int, Field(gt=0)]
 NonNegativeInt = Annotated[int, Field(ge=0)]
 PositiveFloat = Annotated[float, Field(gt=0.0)]
+NonNegativeFloat = Annotated[float, Field(ge=0.0)]
 Identifier = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]{1,63}$")]
 
 
@@ -82,6 +83,37 @@ class StylizedGrid(BaseModel):
 
     spec: StylizedGridSpec
     units: tuple[StylizedSpatialUnit, ...]
+
+
+class StylizedZoningSpec(BaseModel):
+    """Rectangular aggregation dimensions for the synthetic cell grid."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    block_rows: PositiveInt
+    block_columns: PositiveInt
+
+
+class StylizedZone(BaseModel):
+    """Explicit aggregate location with observer-only inherited labels."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
+
+    zone_id: Identifier
+    member_unit_ids: tuple[Identifier, ...]
+    centroid_x_m: NonNegativeFloat
+    centroid_y_m: NonNegativeFloat
+    neighbor_zone_ids: tuple[Identifier, ...]
+    focus_zone_ids: tuple[Identifier, ...]
+    is_corridor_observer: bool
+
+
+class StylizedZoning(BaseModel):
+    """Complete cell-to-zone aggregation."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    zones: tuple[StylizedZone, ...]
 
 
 def _unit_id(row: int, column: int) -> str:
@@ -178,3 +210,42 @@ def generate_stylized_grid(spec: StylizedGridSpec) -> StylizedGrid:
                 )
             )
     return StylizedGrid(spec=spec, units=tuple(units))
+
+
+def generate_stylized_zoning(
+    grid: StylizedGrid,
+    spec: StylizedZoningSpec,
+) -> StylizedZoning:
+    """Aggregate cells without changing or recomputing their state."""
+
+    by_block: dict[tuple[int, int], list[StylizedSpatialUnit]] = {}
+    for unit in grid.units:
+        key = (unit.row // spec.block_rows, unit.column // spec.block_columns)
+        by_block.setdefault(key, []).append(unit)
+
+    zone_rows = math.ceil(grid.spec.rows / spec.block_rows)
+    zone_columns = math.ceil(grid.spec.columns / spec.block_columns)
+    zones: list[StylizedZone] = []
+    for (zone_row, zone_column), members in sorted(by_block.items()):
+        zone_id = f"zone-r{zone_row:02d}-c{zone_column:02d}"
+        neighbor_ids: list[str] = []
+        for row_delta, column_delta in ((-1, 0), (0, -1), (0, 1), (1, 0)):
+            other_row = zone_row + row_delta
+            other_column = zone_column + column_delta
+            if 0 <= other_row < zone_rows and 0 <= other_column < zone_columns:
+                neighbor_ids.append(f"zone-r{other_row:02d}-c{other_column:02d}")
+        focus_zone_ids = tuple(
+            sorted({unit.focus_zone_id for unit in members if unit.focus_zone_id is not None})
+        )
+        zones.append(
+            StylizedZone(
+                zone_id=zone_id,
+                member_unit_ids=tuple(unit.spec.unit_id for unit in members),
+                centroid_x_m=sum(unit.centroid_x_m for unit in members) / len(members),
+                centroid_y_m=sum(unit.centroid_y_m for unit in members) / len(members),
+                neighbor_zone_ids=tuple(sorted(neighbor_ids)),
+                focus_zone_ids=focus_zone_ids,
+                is_corridor_observer=any(unit.is_corridor_observer for unit in members),
+            )
+        )
+    return StylizedZoning(zones=tuple(zones))

@@ -50,6 +50,25 @@ Classification thresholds and arm IDs are explicit inputs. Eight-world classific
 
 A 1,200-unit one-year P0/P1 matched-world test ran through the authoritative `run_world` path. It verified complete terminal state, identical development event tapes, policy divergence, and bounded morphology outputs. The local pytest invocation took approximately 0.58 seconds including process startup; this is an engineering measurement, not a portable performance guarantee.
 
+## Scaled integrated canary
+
+The scaled campaign now couples:
+
+- 1,200 redevelopment cells;
+- 48 explicit 5 × 5-cell agent, market, transport, and environment zones;
+- six weighted household cohorts and six weighted firm cohorts;
+- walk, cycle, road, bus, and corridor-rail edges;
+- P0–P3 and six independent mechanism ablations;
+- a 2026–2028 canary horizon.
+
+A zone membership contract covers every cell exactly once and propagates transport-derived zone accessibility back to every member cell. Environment IDs match zones rather than pretending zones are parcels.
+
+The frozen 8-world × 10-arm canary completed 80 runs. Full JSON export and replay took approximately 56.6 seconds and occupied 129 MiB. This demonstrated exact replay but failed the bounded-artifact requirement.
+
+A bounded exporter therefore retains full config, aggregate summary, paired diagnostics, 1,200-unit decision classifications, and one representative terminal world per arm. Verification reruns the full campaign and rebuilds every derived artifact byte. The verified bounded package occupied approximately 2.8 MiB and took approximately 55 seconds to export and replay-verify.
+
+After adding explicit cycle/bus/rail service-time and capacity interventions, the P1-minus-P0 mean final accessibility delta in the 8-world canary was `+0.0032406`, with no harmed canary worlds. This is a mechanism-observability result, not a statistical policy claim.
+
 ## Remaining boundary
 
-The scaled substrate currently exercises redevelopment over all 1,200 units. Weighted agents, transport assignment, and seasonal exposure still use the smaller integrated fixture. Their next scale-up should use explicit zoning/aggregation where justified rather than pretending 1,200 synthetic cells are empirical parcels or OD zones.
+The 48-zone network and all 1,200 cell states remain synthetic. Eight matched worlds are insufficient for robust spatial classification. The next qualification must run at least 32–64 worlds, inspect convergence and harmed-world tails, and avoid treating focus/corridor observer labels as causal inputs.
