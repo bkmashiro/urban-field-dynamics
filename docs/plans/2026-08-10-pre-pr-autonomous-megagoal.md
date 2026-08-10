@@ -145,8 +145,8 @@ For bounded campaign work, execute the real exporter and verifier, not only unit
 
 ### Track F — Performance and qualification
 
-- [ ] Profile current long-horizon scaled workload and save a reproducible profile summary.
-- [ ] Apply only measured, semantics-preserving CPU optimisations with exact serial/parallel parity.
+- [x] Profile current long-horizon scaled workload and save a reproducible profile summary.
+- [x] Apply only measured, semantics-preserving CPU optimisations with exact serial/parallel parity.
 - [ ] Freeze current-HEAD 32-world qualification documentation.
 - [ ] Run 64-world current-HEAD qualification; inspect convergence, harmed worlds/groups, Pareto stability, runtime, and artifact size.
 - [ ] Run 128-world qualification only if 32→64 diagnostics or uncertainty justify it and runtime/storage stay bounded; otherwise document why 64 is sufficient for this synthetic phase.

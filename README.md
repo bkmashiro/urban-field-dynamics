@@ -98,3 +98,4 @@ Haidian forecast.
 - [Implemented public budget and capacity ledger](docs/model/infrastructure-budget-ledger.md)
 - [Implemented bounded annual market response](docs/model/odd-market-clearing.md)
 - [Implemented matched stress and sensitivity matrices](docs/model/stress-sensitivity.md)
+- [Measured exact transport optimisation](docs/model/scaled-runtime-profile.md)
