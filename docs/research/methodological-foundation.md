@@ -40,13 +40,15 @@ Large submodels such as transport and environmental exposure may receive nested 
 The initial schedule is deliberately explicit:
 
 1. rolling public-policy update in declared replanning years;
-2. spring, summer, autumn and winter representative operations;
-3. household relocation;
-4. firm entry, exit and relocation;
-5. market clearing and price update;
-6. development and redevelopment decisions;
-7. infrastructure aging;
-8. observation and result emission.
+2. annual public-capital or operating-budget allocation;
+3. spring, summer, autumn and winter representative operations;
+4. household relocation and cohort growth;
+5. firm entry, exit, growth and relocation;
+6. weighted labor matching and vacancy/wage/employment feedback;
+7. bounded annual market response and price update;
+8. development and redevelopment decisions;
+9. infrastructure aging;
+10. observation and result emission.
 
 This order is a model assumption subject to testing. It is not claimed as a universal causal order. Seasonal operations summarize representative time blocks; the MVP will not simulate every clock hour of every year. An hourly or microscopic adapter can replace a qualified surrogate later without changing the outer contract.
 

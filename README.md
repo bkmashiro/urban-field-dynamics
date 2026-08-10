@@ -82,6 +82,8 @@ Haidian forecast.
 ## Research and decisions
 
 - [Methodological foundation](docs/research/methodological-foundation.md)
+- [Data requirements and empirical validation gates](docs/research/data-requirements-and-validation.md)
+- [Bounded evidence reproduction](docs/reproduction.md)
 - [ADR 0001: engine/submission boundary](docs/adr/0001-engine-submission-boundary.md)
 - [Implemented redevelopment ODD slice](docs/model/odd-redevelopment-slice.md)
 - [Implemented weighted cohort and market ODD slice](docs/model/odd-agent-market-slice.md)
@@ -99,3 +101,5 @@ Haidian forecast.
 - [Implemented bounded annual market response](docs/model/odd-market-clearing.md)
 - [Implemented matched stress and sensitivity matrices](docs/model/stress-sensitivity.md)
 - [Measured exact transport optimisation](docs/model/scaled-runtime-profile.md)
+- [Current 32-world 2026–2050 synthetic qualification](docs/model/scaled-qualification-2050-32.md)
+- [Current 64-world 2026–2050 synthetic qualification](docs/model/scaled-qualification-2050-64.md)

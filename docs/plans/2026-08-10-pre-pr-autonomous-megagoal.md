@@ -147,17 +147,17 @@ For bounded campaign work, execute the real exporter and verifier, not only unit
 
 - [x] Profile current long-horizon scaled workload and save a reproducible profile summary.
 - [x] Apply only measured, semantics-preserving CPU optimisations with exact serial/parallel parity.
-- [ ] Freeze current-HEAD 32-world qualification documentation.
-- [ ] Run 64-world current-HEAD qualification; inspect convergence, harmed worlds/groups, Pareto stability, runtime, and artifact size.
-- [ ] Run 128-world qualification only if 32→64 diagnostics or uncertainty justify it and runtime/storage stay bounded; otherwise document why 64 is sufficient for this synthetic phase.
+- [x] Freeze current-HEAD 32-world qualification documentation.
+- [x] Run 64-world current-HEAD qualification; inspect convergence, harmed worlds/groups, Pareto stability, runtime, and artifact size.
+- [x] Decide against 128 worlds because 32→64 directions and tails were stable; document why more synthetic sampling would not resolve structural or empirical uncertainty.
 
 ### Track G — Public package and pre-PR closeout
 
 - [x] Expose integrated/scaled/sweep/stress bounded workflows through stable CLI commands.
-- [ ] Execute README/public CLI examples in a clean temporary output root.
-- [ ] Build wheel/sdist and install-smoke the wheel in a temporary environment.
+- [x] Execute README/public CLI examples in a clean temporary output root.
+- [x] Build wheel/sdist and install-smoke the wheel in a temporary environment.
 - [x] Add provenance fields needed to pin source commit/config without reading Git during replay.
-- [ ] Update ODD, limitations, data requirements, qualification, and reproduction docs.
+- [x] Update ODD, limitations, data requirements, qualification, and reproduction docs.
 - [ ] Produce a local pre-PR review packet/checklist identifying exact companion commits/artifacts and permission-gated Haidian changes.
 - [ ] Run final full gates, verify all local commit signatures, and stop before push/PR.
 
@@ -192,6 +192,7 @@ If blocked, record the blocker here and report exact modified files, tests, Git 
 - 2026-08-10: Track A complete. Added per-world matched sweep responses, random-identity validation, bounded hash/replay evidence, stable CLI, and a real 8-world × 5-level × 2026–2050 export/replay canary (1.1 MiB). Next: Track B labor matching.
 - 2026-08-10: Track B complete. Added deterministic weighted labor flow, complete congested transport skims without extra demand, wage and vacancy-retention feedback, firm/location job-state consistency, equity observers, a P3 matched ablation, bounded evidence, and long-horizon execution. Next: Track C infrastructure and budget ledgers.
 - 2026-08-10: Tracks C–E complete. Added fail-closed public budget/capacity ledgers, bounded annual market-response convergence, group tail harm, cost leverage, and a six-scenario matched stress matrix. Frozen commit `04effa1` completed an 8-world × 6-scenario × 4-policy 2050 export/full-replay canary in 401.60 s; artifact size 784 KiB. Next: provenance checkpoint, profiling, and current-HEAD qualification.
+- 2026-08-10: Track F complete. Exact transport optimisation at signed commit `64a8e7d` preserved the 130,847,617-byte campaign SHA while reducing the one-world 2050 workload from 39.78 s to 2.70 s. Frozen 32- and 64-world bounded campaigns both exported and fully replayed; the 64-world matrix covered 832 runs in 160.00 s total. No selected direction flipped from 32 to 64, so 128 worlds were rejected as low-value synthetic oversampling.
 
 ## Short prompt
 
