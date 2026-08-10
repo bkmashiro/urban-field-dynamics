@@ -50,6 +50,7 @@ class MechanismSwitches(BaseModel):
     seasonality_enabled: bool = True
     environmental_exposure_enabled: bool = True
     public_coordination_enabled: bool = True
+    service_provision_enabled: bool = True
 
 
 class PolicySpec(BaseModel):
@@ -64,6 +65,8 @@ class PolicySpec(BaseModel):
     transport_capacity_multiplier_by_edge: dict[str, PositiveFloat] = Field(default_factory=dict)
     transport_time_multiplier_by_edge: dict[str, PositiveFloat] = Field(default_factory=dict)
     green_fraction_delta_by_unit: dict[str, AccessibilityDelta] = Field(default_factory=dict)
+    service_quality_delta_by_location: dict[str, AccessibilityDelta] = Field(default_factory=dict)
+    service_capacity_multiplier_by_location: dict[str, PositiveFloat] = Field(default_factory=dict)
 
 
 class WorldRunConfig(BaseModel):
@@ -121,6 +124,18 @@ class WorldRunConfig(BaseModel):
             if (self.households or self.firms) and self.market is None:
                 raise ValueError("market is required when agent state is configured")
             known_locations = set(location_ids)
+            if not set(self.policy.service_quality_delta_by_location).issubset(known_locations):
+                raise ValueError("policy service-quality IDs must exist in locations")
+            if not set(self.policy.service_capacity_multiplier_by_location).issubset(
+                known_locations
+            ):
+                raise ValueError("policy service-capacity IDs must exist in locations")
+            locations_by_id = {location.unit_id: location for location in self.locations}
+            if any(
+                locations_by_id[location_id].service_capacity is None
+                for location_id in self.policy.service_capacity_multiplier_by_location
+            ):
+                raise ValueError("service-capacity policy requires explicit baseline capacity")
             cohort_ids = [cohort.cohort_id for cohort in (*self.households, *self.firms)]
             if len(cohort_ids) != len(set(cohort_ids)):
                 raise ValueError("household and firm cohort IDs must be unique")
@@ -175,6 +190,11 @@ class WorldRunConfig(BaseModel):
                 raise ValueError("environment transport edge IDs must exist in transport_edges")
         elif self.policy.green_fraction_delta_by_unit:
             raise ValueError("green-fraction policy requires environmental units")
+        if (
+            self.policy.service_quality_delta_by_location
+            or self.policy.service_capacity_multiplier_by_location
+        ) and not self.locations:
+            raise ValueError("service-quality policy requires locations")
         return self
 
 
@@ -203,6 +223,8 @@ class WorldResult(BaseModel):
         default_factory=dict
     )
     final_environment_quality: dict[str, float] = Field(default_factory=dict)
+    final_service_quality: dict[str, float] = Field(default_factory=dict)
+    final_service_capacity: dict[str, float | None] = Field(default_factory=dict)
     mechanisms: MechanismSwitches = MechanismSwitches()
 
     @property
@@ -288,6 +310,31 @@ def run_world(config: WorldRunConfig) -> WorldResult:
                             "accessibility": sum(accessibility[item] for item in member_ids)
                             / len(member_ids)
                         }
+                    )
+                for location_id, delta in (
+                    config.policy.service_quality_delta_by_location.items()
+                    if config.mechanisms.service_provision_enabled
+                    else ()
+                ):
+                    location = locations[location_id]
+                    locations[location_id] = location.model_copy(
+                        update={
+                            "service_quality": min(1.0, max(0.0, location.service_quality + delta))
+                        }
+                    )
+                for (
+                    location_id,
+                    multiplier,
+                ) in (
+                    config.policy.service_capacity_multiplier_by_location.items()
+                    if config.mechanisms.service_provision_enabled
+                    else ()
+                ):
+                    location = locations[location_id]
+                    if location.service_capacity is None:
+                        raise AssertionError("validated service capacity cannot be absent")
+                    locations[location_id] = location.model_copy(
+                        update={"service_capacity": location.service_capacity * multiplier}
                     )
 
         elif step.phase is AnnualPhase.SEASONAL_OPERATIONS:
@@ -499,6 +546,12 @@ def run_world(config: WorldRunConfig) -> WorldResult:
         environment_traces=environment_traces,
         final_environment_quality={
             unit_id: location.environment_quality for unit_id, location in locations.items()
+        },
+        final_service_quality={
+            unit_id: location.service_quality for unit_id, location in locations.items()
+        },
+        final_service_capacity={
+            unit_id: location.service_capacity for unit_id, location in locations.items()
         },
         mechanisms=config.mechanisms,
     )

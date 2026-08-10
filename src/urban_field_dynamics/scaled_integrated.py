@@ -84,12 +84,22 @@ def _anchors(zoning: StylizedZoning) -> dict[str, str]:
 
 def _households(anchors: dict[str, str]) -> tuple[HouseholdCohortSpec, ...]:
     rows = (
-        ("students", 40.0, "focus-north", 80.0, 1.4, 1.0, 0.8, 1.2),
-        ("research-talent", 40.0, "focus-central", 160.0, 1.3, 1.4, 0.6, 0.6),
-        ("service-workers", 40.0, "focus-south", 90.0, 0.8, 1.5, 0.5, 1.5),
-        ("older-adults", 35.0, "corridor", 100.0, 0.8, 0.5, 1.8, 1.0),
-        ("families-with-children", 45.0, "focus-central", 140.0, 0.9, 0.9, 1.5, 0.8),
-        ("accessibility-needs", 30.0, "focus-south", 95.0, 1.0, 0.6, 1.7, 1.2),
+        ("students", 40.0, "focus-north", 80.0, 1.4, 1.0, 0.8, 1.2, 1.0),
+        ("research-talent", 40.0, "focus-central", 160.0, 1.3, 1.4, 0.6, 0.6, 0.7),
+        ("service-workers", 40.0, "focus-south", 90.0, 0.8, 1.5, 0.5, 1.5, 0.8),
+        ("older-adults", 35.0, "corridor", 100.0, 0.8, 0.5, 1.8, 1.0, 1.8),
+        (
+            "families-with-children",
+            45.0,
+            "focus-central",
+            140.0,
+            0.9,
+            0.9,
+            1.5,
+            0.8,
+            1.8,
+        ),
+        ("accessibility-needs", 30.0, "focus-south", 95.0, 1.0, 0.6, 1.7, 1.2, 1.7),
     )
     return tuple(
         HouseholdCohortSpec(
@@ -102,6 +112,7 @@ def _households(anchors: dict[str, str]) -> tuple[HouseholdCohortSpec, ...]:
             jobs_weight=jobs_weight,
             environment_weight=environment_weight,
             rent_burden_weight=rent_weight,
+            service_weight=service_weight,
             evidence_status=SYNTHETIC,
         )
         for (
@@ -113,6 +124,7 @@ def _households(anchors: dict[str, str]) -> tuple[HouseholdCohortSpec, ...]:
             jobs_weight,
             environment_weight,
             rent_weight,
+            service_weight,
         ) in rows
     )
 
@@ -175,6 +187,18 @@ def _locations(
             housing_capacity=500.0,
             employment_capacity=500.0,
             environment_quality=0.5,
+            service_quality=0.3
+            + 0.6
+            * sum(
+                units[item].current_use is LandUse.PUBLIC_SERVICE for item in zone.member_unit_ids
+            )
+            / len(zone.member_unit_ids),
+            service_capacity=20.0
+            + 150.0
+            * sum(
+                units[item].current_use is LandUse.PUBLIC_SERVICE for item in zone.member_unit_ids
+            )
+            / len(zone.member_unit_ids),
             evidence_status=SYNTHETIC,
         )
         for zone in zoning.zones
@@ -299,6 +323,10 @@ def _arms(
         if edge.mode in {TransportMode.CYCLE, TransportMode.BUS, TransportMode.RAIL}
     }
     green_delta = {zone.zone_id: (0.25 if zone.focus_zone_ids else 0.15) for zone in zoning.zones}
+    service_delta = {zone.zone_id: (0.25 if zone.focus_zone_ids else 0.10) for zone in zoning.zones}
+    service_capacity_multiplier = {
+        zone.zone_id: (2.0 if zone.focus_zone_ids else 1.5) for zone in zoning.zones
+    }
     p0 = PolicySpec(policy_id="p0", intervention_year=2026)
     p1 = PolicySpec(
         policy_id="p1",
@@ -317,6 +345,8 @@ def _arms(
         transport_capacity_multiplier_by_edge=transit_multipliers,
         transport_time_multiplier_by_edge=transit_time_multipliers,
         green_fraction_delta_by_unit=green_delta,
+        service_quality_delta_by_location=service_delta,
+        service_capacity_multiplier_by_location=service_capacity_multiplier,
     )
     return (
         CampaignArm(arm_id="p0", policy=p0),
@@ -343,6 +373,11 @@ def _arms(
             arm_id="p3-no-environmental-exposure",
             policy=p3,
             mechanisms=MechanismSwitches(environmental_exposure_enabled=False),
+        ),
+        CampaignArm(
+            arm_id="p3-no-service-provision",
+            policy=p3,
+            mechanisms=MechanismSwitches(service_provision_enabled=False),
         ),
         CampaignArm(
             arm_id="p3-no-public-coordination",

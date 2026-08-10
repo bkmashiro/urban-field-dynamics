@@ -1,3 +1,4 @@
+from urban_field_dynamics.analysis import integrated_qualification_diagnostics
 from urban_field_dynamics.campaign import run_campaign
 from urban_field_dynamics.scaled_integrated import scaled_integrated_campaign
 from urban_field_dynamics.transport import TransportMode
@@ -14,7 +15,10 @@ def test_scaled_integrated_contract_has_1200_cells_and_48_explicit_zones() -> No
     }
     assert len(spec.households) == 6
     assert len(spec.firms) == 6
-    assert len(spec.arms) == 10
+    assert len(spec.arms) == 11
+    p3 = next(arm for arm in spec.arms if arm.arm_id == "p3")
+    assert len(p3.policy.service_quality_delta_by_location) == 48
+    assert len(p3.policy.service_capacity_multiplier_by_location) == 48
     assert scaled_integrated_campaign(world_count=32).campaign_id == (
         "scaled-integrated-qualification-32"
     )
@@ -27,7 +31,7 @@ def test_scaled_integrated_contract_has_1200_cells_and_48_explicit_zones() -> No
 def test_scaled_integrated_one_world_executes_all_matched_arms() -> None:
     result = run_campaign(scaled_integrated_campaign(world_count=1))
 
-    assert result.summary.run_count == 10
+    assert result.summary.run_count == 11
     worlds = [run.world for run in result.runs]
     assert all(len(world.final_uses) == 1_200 for world in worlds)
     assert all(len(world.final_rents) == 48 for world in worlds)
@@ -40,3 +44,5 @@ def test_scaled_integrated_one_world_executes_all_matched_arms() -> None:
         summaries["p2"].mean_final_environment_quality
         > summaries["p0"].mean_final_environment_quality
     )
+    diagnostics = integrated_qualification_diagnostics(result, checkpoints=(1,))
+    assert diagnostics.comparisons["service-provision-effect"].checkpoints[-1].mean_delta > 0.0

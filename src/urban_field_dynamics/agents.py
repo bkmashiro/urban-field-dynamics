@@ -31,6 +31,7 @@ class HouseholdCohortSpec(BaseModel):
     environment_weight: NonNegativeFloat
     rent_burden_weight: NonNegativeFloat
     evidence_status: EvidenceStatus
+    service_weight: NonNegativeFloat = 0.0
 
     @property
     def housing_demand(self) -> float:
@@ -70,6 +71,8 @@ class LocationState(BaseModel):
     employment_capacity: NonNegativeFloat
     environment_quality: UnitInterval
     evidence_status: EvidenceStatus
+    service_quality: UnitInterval = 0.5
+    service_capacity: NonNegativeFloat | None = None
 
 
 class AgentAllocationResult(BaseModel):
@@ -92,10 +95,15 @@ def household_utility(
 
     job_access = location.jobs / max(location.employment_capacity, 1.0)
     rent_burden = location.rent / cohort.income
+    service_access = location.service_quality
+    if location.service_capacity is not None:
+        demand = location.households + cohort.housing_demand
+        service_access *= min(1.0, location.service_capacity / max(demand, 1.0))
     return (
         cohort.accessibility_weight * location.accessibility
         + cohort.jobs_weight * job_access
         + cohort.environment_weight * location.environment_quality
+        + cohort.service_weight * service_access
         - cohort.rent_burden_weight * rent_burden
         + taste_shock
     )

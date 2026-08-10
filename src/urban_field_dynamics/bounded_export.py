@@ -76,6 +76,8 @@ def _representative_worlds(
             "final_jobs": world.final_jobs,
             "final_rents": world.final_rents,
             "final_environment_quality": world.final_environment_quality,
+            "final_service_quality": world.final_service_quality,
+            "final_service_capacity": world.final_service_capacity,
         }
     return representatives
 

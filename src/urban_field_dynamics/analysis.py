@@ -22,6 +22,7 @@ class CampaignMetric(StrEnum):
     FINAL_ENVIRONMENT_QUALITY = "final_environment_quality"
     FINAL_RENT = "final_rent"
     SEASONAL_HEAT_RANGE = "seasonal_heat_range"
+    FINAL_SERVICE_ACCESS = "final_service_access"
 
 
 class ConvergencePoint(BaseModel):
@@ -80,6 +81,18 @@ def _seasonal_heat_range(world: WorldResult) -> float:
     return sum(ranges) / len(ranges) if ranges else 0.0
 
 
+def _service_access(world: WorldResult) -> float:
+    values: list[float] = []
+    for unit_id, quality in world.final_service_quality.items():
+        capacity = world.final_service_capacity.get(unit_id)
+        if capacity is None:
+            values.append(quality)
+            continue
+        demand = world.final_households.get(unit_id, 0.0)
+        values.append(quality * min(1.0, capacity / max(demand, 1.0)))
+    return statistics.fmean(values) if values else 0.0
+
+
 def _metric(world: WorldResult, metric: CampaignMetric) -> float:
     if metric is CampaignMetric.REDEVELOPMENTS:
         return float(world.redevelopment_count)
@@ -91,6 +104,8 @@ def _metric(world: WorldResult, metric: CampaignMetric) -> float:
         return _mean(world.final_rents)
     if metric is CampaignMetric.SEASONAL_HEAT_RANGE:
         return _seasonal_heat_range(world)
+    if metric is CampaignMetric.FINAL_SERVICE_ACCESS:
+        return _service_access(world)
     raise AssertionError(f"unsupported campaign metric: {metric}")
 
 
@@ -227,6 +242,15 @@ def integrated_qualification_diagnostics(
             checkpoints=checkpoints,
         ),
     }
+    arm_ids = {run.arm_id for run in result.runs}
+    if "p3-no-service-provision" in arm_ids:
+        comparisons["service-provision-effect"] = paired_convergence(
+            result,
+            baseline_arm="p3-no-service-provision",
+            comparator_arm="p3",
+            metric=CampaignMetric.FINAL_SERVICE_ACCESS,
+            checkpoints=checkpoints,
+        )
     world_count = len(next(iter(comparisons.values())).world_ids)
     return QualificationDiagnostics(
         campaign_id=result.campaign_id,
